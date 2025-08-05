@@ -159,7 +159,7 @@ if not TRADE_API_KEY or not TRADE_API_SECRET:
     raise ValueError("Alpaca API credentials not found in environment variables.")
 
 # Convert string to boolean
-ALPACA_PAPER_TRADE_BOOL = ALPACA_PAPER_TRADE.lower() in ['true', '1', 'yes', 'on']
+ALPACA_PAPER_TRADE_BOOL = ALPACA_PAPER_TRADE.lower() not in ['false', '0', 'no', 'off']
 
 # Initialize clients
 # For trading
