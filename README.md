@@ -32,14 +32,15 @@ This is a Model Context Protocol (MCP) server implementation for Alpaca's Tradin
 - **Asset Search**
   - Query details for stocks and other Alpaca-supported assets
 
-## 0. Prerequisites
+## Getting Started
+### 0. Prerequisites
 
 - Python (version requirements can be found at: https://modelcontextprotocol.io/quickstart/server)
 - GitHub account
 - Alpaca API keys (with paper or live trading access)
 - Claude for Desktop or another compatible MCP client
 
-## 1. Installation
+### 1. Installation
 
 1. Clone the repository and navigate to the directory:
    ```bash
@@ -68,7 +69,7 @@ This is a Model Context Protocol (MCP) server implementation for Alpaca's Tradin
     **Note:** The virtual environment will use the Python version that was used to create it. If you run the command with Python 3.10 or newer, your virtual environment will also use Python 3.10+. If you want to confirm the version, you can run `python3 --version` after activating the virtual environment. 
 
 
-## Project Structure
+### Project Structure
 
 After cloning and activating the virtual environment, your directory structure should look like this:
 ```
@@ -89,7 +90,7 @@ alpaca-mcp-server/          ← This is the workspace folder (= project root)
 └── README.md
 ```
 
-## 2. Create and edit a .env file for your credentials in the project directory
+### 2. Create and edit a .env file for your credentials in the project directory
 
 1. Copy the example environment file in the project root by running this command:
    ```bash
@@ -108,7 +109,7 @@ alpaca-mcp-server/          ← This is the workspace folder (= project root)
    STREAM_DATA_WSS = None
    ```
 
-## 3. Start the MCP Server
+### 3. Start the MCP Server
 
 Open a terminal in the project root directory and run the following command:
 
@@ -131,11 +132,56 @@ python alpaca_mcp_server.py --transport http
 
 **Note:** For more information about MCP transport methods, see the [official MCP transport documentation](https://modelcontextprotocol.io/docs/concepts/transports).
 
-## Claude Desktop Usage
+### 4. API Key Configuration for Live Trading
+
+This MCP server connects to Alpaca's **paper trading API** by default for safe testing.
+To enable **live trading with real funds**, update the following configuration files:
+
+### Set Your API Credentials in Two Places:
+
+1. **Update environment file in the project directory**
+
+    Provide your live account keys as environment variables in the `.env` file:
+    ```
+    ALPACA_API_KEY = "your_alpaca_api_key_for_live_account"
+    ALPACA_SECRET_KEY = "your_alpaca_secret_key_for_live_account"
+    ALPACA_PAPER_TRADE = False
+    TRADE_API_URL = None
+    TRADE_API_WSS = None
+    DATA_API_URL = None
+    STREAM_DATA_WSS = None
+    ```
+
+2. **Update Configuration file**
+
+   For example, when using Claude Desktop, provide your live account keys as environment variables in `claude_desktop_config.json`:
+
+   ```json
+   {
+     "mcpServers": {
+       "alpaca": {
+         "command": "<project_root>/venv/bin/python",
+         "args": [
+           "/path/to/alpaca_mcp_server.py"
+         ],
+         "env": {
+           "ALPACA_API_KEY": "your_alpaca_api_key_for_live_account",
+           "ALPACA_SECRET_KEY": "your_alpaca_secret_key_for_live_account"
+         }
+       }
+     }
+   }
+   ```
+
+## MCP Client Configuration
+
+Below you'll find step-by-step guides for connecting the Alpaca MCP server to various MCP clients. Choose the section that matches your preferred development environment or AI assistant.
+
+### Claude Desktop Usage
 
 To use Alpaca MCP Server with Claude Desktop, please follow the steps below. The official Claude Desktop setup document is available here: https://modelcontextprotocol.io/quickstart/user
 
-### Configure Claude Desktop
+#### Configure Claude Desktop
 
 1. Open Claude Desktop
 2. Navigate to: `Settings → Developer → Edit Config`
@@ -178,7 +224,7 @@ To use Alpaca MCP Server with Claude Desktop, please follow the steps below. The
 }
 ```
 
-## Claude Code Usage
+### Claude Code Usage
 
 To use Alpaca MCP Server with Claude Code, please follow the steps below.
 
@@ -198,7 +244,7 @@ The Claude MCP CLI tool needs to be installed separately. Check following the of
 * [Learn how to set up MCP with Claude Code](https://docs.anthropic.com/en/docs/claude-code/mcp)
 * [Install, authenticate, and start using Claude Code on your development machine](https://docs.anthropic.com/en/docs/claude-code/setup)
 
-## Cursor Usage
+### Cursor Usage
 
 To use Alpaca MCP Server with Cursor, please follow the steps below. The official Cursor MCP setup document is available here: https://docs.cursor.com/context/mcp
 
@@ -206,7 +252,7 @@ To use Alpaca MCP Server with Cursor, please follow the steps below. The officia
 - Cursor IDE installed with Claude AI enabled
 - Python and virtual environment set up (follow Installation steps above)
 
-### Configure the MCP Server
+#### Configure the MCP Server
 
 **Method 1: Using JSON Configuration**
 
@@ -237,7 +283,7 @@ Create or edit `~/.cursor/mcp.json` (macOS/Linux) or `%USERPROFILE%\.cursor\mcp.
 
 **Note:** Replace the paths with your actual project directory paths and API credentials.
 
-## VS Code Usage
+### VS Code Usage
 
 To use Alpaca MCP Server with VS Code, please follow the steps below.
 
@@ -249,13 +295,13 @@ The official VS Code setup document is available here: https://code.visualstudio
 - Python and virtual environment set up (follow Installation steps above)
 - MCP support enabled in VS Code (see below)
 
-### 1. Enable MCP Support in VS Code
+#### 1. Enable MCP Support in VS Code
 
 1. Open VS Code Settings (Ctrl/Cmd + ,)
 2. Search for "chat.mcp.enabled" to check the box to enable MCP support
 3. Search for "github.copilot.chat.experimental.mcp" to check the box to use instruction files
 
-### 2. Configure the MCP Server
+#### 2. Configure the MCP Server
 
 **Recommendation:** Use **workspace-specific** configuration (`.vscode/mcp.json`) instead of user-wide configuration. This allows different projects to use different API keys (multiple paper accounts or live trading) and keeps trading tools isolated from other development work.
 
@@ -328,7 +374,7 @@ Specify the server in the `mcp` VS Code user settings (`settings.json`) to enabl
 }
 ```
 
-## PyCharm Usage
+### PyCharm Usage
 
 To use the Alpaca MCP Server with PyCharm, please follow the steps below. The official setup guide for configuring the MCP Server in PyCharm is available here: https://www.jetbrains.com/help/ai-assistant/configure-an-mcp-server.html
 
@@ -353,14 +399,14 @@ PyCharm supports MCP servers through its integrated MCP client functionality. Th
    MCP_CLIENT=pycharm
    ```
 
-## Docker Usage
+### Docker Usage
 
 To use Alpaca MCP Server with Docker, please follow the steps below.
 
 **Prerequisite:**  
 You must have [Docker installed](https://docs.docker.com/get-docker/) on your system.
 
-### Run the latest published image (recommended for most users)
+#### Run the latest published image (recommended for most users)
 ```bash
 docker run -it --rm \
   -e ALPACA_API_KEY=your_alpaca_api_key \
@@ -369,7 +415,7 @@ docker run -it --rm \
 ```
 This pulls and runs the latest published version of the server. Replace `your_alpaca_api_key` and `your_alpaca_secret_key` with your actual keys. If the server exposes a port (e.g., 8080), add `-p 8080:8080` to the command.
 
-### Build and run locally (for development or custom changes)
+#### Build and run locally (for development or custom changes)
 ```bash
 docker build -t alpaca-mcp-server .
 docker run -it --rm \
@@ -379,7 +425,7 @@ docker run -it --rm \
 ```
 Use this if you want to run a modified or development version of the server.
 
-### Using with Claude Desktop
+#### Using with Claude Desktop
 ```json
 {
   "mcpServers": {
@@ -407,46 +453,6 @@ Environment variables can be set either with `-e` flags or in the `"env"` object
 
 **For more advanced Docker usage:**  See the [official Docker documentation](https://docs.docker.com/).
 
-## 4. API Key Configuration for Live Trading
-
-This MCP server connects to Alpaca's **paper trading API** by default for safe testing.
-To enable **live trading with real funds**, update the following configuration files:
-
-### Set Your API Credentials in Two Places:
-
-1. **Update environment file in the project directory**
-
-    Provide your live account keys as environment variables in the `.env` file:
-    ```
-    ALPACA_API_KEY = "your_alpaca_api_key_for_live_account"
-    ALPACA_SECRET_KEY = "your_alpaca_secret_key_for_live_account"
-    ALPACA_PAPER_TRADE = False
-    TRADE_API_URL = None
-    TRADE_API_WSS = None
-    DATA_API_URL = None
-    STREAM_DATA_WSS = None
-    ```
-
-2. **Update Configuration file**
-
-   For example, when using Claude Desktop, provide your live account keys as environment variables in `claude_desktop_config.json`:
-
-   ```json
-   {
-     "mcpServers": {
-       "alpaca": {
-         "command": "<project_root>/venv/bin/python",
-         "args": [
-           "/path/to/alpaca_mcp_server.py"
-         ],
-         "env": {
-           "ALPACA_API_KEY": "your_alpaca_api_key_for_live_account",
-           "ALPACA_SECRET_KEY": "your_alpaca_secret_key_for_live_account"
-         }
-       }
-     }
-   }
-   ```
 
 ## Available Tools
 
@@ -485,7 +491,7 @@ To enable **live trading with real funds**, update the following configuration f
 
 * `get_market_clock()` – Market open/close schedule
 * `get_market_calendar(start, end)` – Holidays and trading days
-* `get_corporate_announcements(...)` – Historical earnings, dividends, splits
+* `get_corporate_announcements(ca_types, start, end, symbols)` – Historical and future corporate actions (e.g., earnings, dividends, splits)
 
 ### Watchlists
 
@@ -562,7 +568,7 @@ See the "Example Queries" section below for 50 real examples covering everything
 ### Asset Information
 46. Search for details about the asset 'AAPL'.
 47. Show me the top 5 tradable crypto assets by trading volume.
-48. Filter assets with status 'active' for tech stocks.
+48. Get all NASDAQ active US equity assets and filter the results to show only tradable securities
 
 ### Combined Scenarios
 49. Get today's market clock and show me my buying power before placing a limit buy order for TSLA at $340.

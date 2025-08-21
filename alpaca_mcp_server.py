@@ -1742,7 +1742,7 @@ async def get_option_snapshot(symbol_or_symbols: Union[str, List[str]], feed: Op
 # Options Trading Helper Functions
 # ============================================================================
 
-def _validate_option_order_inputs(legs: List[Dict[str, Any]], quantity: int, time_in_force: TimeInForce) -> Optional[str]:
+def _validate_option_order_inputs(legs: List[Dict[str, Any]], quantity: int, time_in_force: Union[str, TimeInForce]) -> Optional[str]:
     """Validate inputs for option order placement."""
     if not legs:
         return "Error: No option legs provided"
@@ -1750,12 +1750,25 @@ def _validate_option_order_inputs(legs: List[Dict[str, Any]], quantity: int, tim
         return "Error: Maximum of 4 legs allowed for option orders"
     if quantity <= 0:
         return "Error: Quantity must be positive"
-    if time_in_force != TimeInForce.DAY:
-        return "Error: Only DAY time_in_force is supported for options trading"
+    
+    # Handle both string and enum inputs
+    if isinstance(time_in_force, str):
+        if time_in_force.lower() != "day":
+            return "Error: Only 'day' time_in_force is supported for options trading"
+    elif isinstance(time_in_force, TimeInForce):
+        if time_in_force != TimeInForce.DAY:
+            return "Error: Only DAY time_in_force is supported for options trading"
+    else:
+        return f"Error: Invalid time_in_force type: {type(time_in_force)}. Must be string or TimeInForce enum."
+    
     return None
 
 def _convert_order_class_string(order_class: Optional[Union[str, OrderClass]]) -> Union[OrderClass, str]:
     """Convert order class string to enum if needed."""
+    if order_class is None:
+        return order_class
+    if isinstance(order_class, OrderClass):
+        return order_class
     if isinstance(order_class, str):
         order_class_upper = order_class.upper()
         class_mapping = {
@@ -1769,7 +1782,8 @@ def _convert_order_class_string(order_class: Optional[Union[str, OrderClass]]) -
             return class_mapping[order_class_upper]
         else:
             return f"Invalid order class: {order_class}. Must be one of: simple, bracket, oco, oto, mleg"
-    return order_class
+    else:
+        return f"Invalid order class type: {type(order_class)}. Must be string or OrderClass enum."
 
 def _process_option_legs(legs: List[Dict[str, Any]]) -> Union[List[OptionLegRequest], str]:
     """Convert leg dictionaries to OptionLegRequest objects."""
@@ -2029,7 +2043,7 @@ async def place_option_market_order(
     legs: List[Dict[str, Any]],
     order_class: Optional[Union[str, OrderClass]] = None,
     quantity: int = 1,
-    time_in_force: TimeInForce = TimeInForce.DAY,
+    time_in_force: Union[str, TimeInForce] = "day",
     extended_hours: bool = False
 ) -> str:
     """
@@ -2052,8 +2066,8 @@ async def place_option_market_order(
         order_class (Optional[Union[str, OrderClass]]): Order class ('simple', 'bracket', 'oco', 'oto', 'mleg' or OrderClass enum)
             Defaults to 'simple' for single leg, 'mleg' for multi-leg
         quantity (int): Base quantity for the order (default: 1)
-        time_in_force (TimeInForce): Time in force for the order. For options trading, 
-            only DAY is supported (default: TimeInForce.DAY)
+        time_in_force (Union[str, TimeInForce]): Time in force for the order. For options trading, 
+            only 'day' is supported (default: 'day')
         extended_hours (bool): Whether to allow execution during extended hours (default: False)
     
     Returns:
@@ -2086,6 +2100,14 @@ async def place_option_market_order(
         if validation_error:
             return validation_error
         
+        # Convert time_in_force to enum (handle both string and enum inputs)
+        if isinstance(time_in_force, str):
+            time_in_force_enum = TimeInForce.DAY  # Only DAY is supported for options
+        elif isinstance(time_in_force, TimeInForce):
+            time_in_force_enum = time_in_force
+        else:
+            return f"Error: Invalid time_in_force type: {type(time_in_force)}. Must be string or TimeInForce enum."
+        
         # Convert order class string to enum if needed
         converted_order_class = _convert_order_class_string(order_class)
         if isinstance(converted_order_class, OrderClass):
@@ -2105,7 +2127,7 @@ async def place_option_market_order(
         
         # Create order request
         order_data = _create_option_market_order_request(
-            order_legs, order_class, quantity, time_in_force, extended_hours
+            order_legs, order_class, quantity, time_in_force_enum, extended_hours
         )
         
         # Submit order
