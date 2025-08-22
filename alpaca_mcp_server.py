@@ -979,9 +979,10 @@ async def cancel_order_by_id(order_id: str) -> str:
     except Exception as e:
         return f"Error cancelling order {order_id}: {str(e)}"
 
-# ============================================================================
+# =======================================================================================
 # Position Management Tools
-# ============================================================================
+# Ref: https://alpaca.markets/sdks/python/api_reference/trading/positions.html#positions
+# =======================================================================================
 
 @mcp.tool()
 async def close_position(symbol: str, qty: Optional[str] = None, percentage: Optional[str] = None) -> str:
@@ -1067,6 +1068,25 @@ async def close_all_positions(cancel_orders: bool = False) -> str:
         
     except Exception as e:
         return f"Error closing positions: {str(e)}"
+
+# Position Management Tools (Options)
+@mcp.tool()
+async def exercise_options_position(symbol_or_contract_id: str) -> str:
+    """
+    Exercises a held option contract, converting it into the underlying asset.
+    
+    Args:
+        symbol_or_contract_id (str): Option contract symbol (e.g., 'NVDA250919C001680') or contract ID
+    
+    Returns:
+        str: Success message or error details
+    """
+    try:
+        trade_client.exercise_options_position(symbol_or_contract_id=symbol_or_contract_id)
+        return f"Successfully submitted exercise request for option contract: {symbol_or_contract_id}"
+    except Exception as e:
+        return f"Error exercising option contract '{symbol_or_contract_id}': {str(e)}"
+
 
 # ============================================================================
 # Asset Information Tools

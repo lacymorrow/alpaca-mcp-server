@@ -486,6 +486,7 @@ Environment variables can be set either with `-e` flags or in the `"env"` object
 * `get_option_latest_quote(option_symbol)` – Latest bid/ask on contract
 * `get_option_snapshot(symbol_or_symbols)` – Get Greeks and underlying
 * `place_option_market_order(legs, order_class=None, quantity=1, time_in_force=TimeInForce.DAY, extended_hours=False)` – Execute option strategy
+* `exercise_options_position(symbol_or_contract_id)` – Exercise a held option contract, converting it into the underlying asset
 
 ### Market Info & Corporate Actions
 
@@ -529,9 +530,9 @@ See the "Example Queries" section below for 50 real examples covering everything
 17. Find TSLA option contracts with strike prices within 5% of the current market price.
 18. Get SPY call options expiring the week of June 16th, 2025, within 10% of market price.
 19. Place a bull call spread using AAPL June 6th options: one with a 190.00 strike and the other with a 200.00 strike.
+20. Exercise my NVDA call option contract NVDA250919C001680.
 
 ### Market Information
-20. Is the US stock market currently open?
 21. What are the market open and close times today?
 22. Show me the market calendar for next week.
 23. Show me recent cash dividends and stock splits for AAPL, MSFT, and GOOGL in the last 3 months.
