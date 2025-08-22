@@ -482,7 +482,7 @@ Environment variables can be set either with `-e` flags or in the `"env"` object
 
 ### Options
 
-* `get_option_contracts(underlying_symbol, expiration_date=None, expiration_month=None, expiration_year=None, expiration_week_start=None, strike_price_gte=None, strike_price_lte=None, type=None, status=None, root_symbol=None, limit=None)` – Fetch contracts with comprehensive filtering options
+* `get_option_contracts(underlying_symbol, expiration_date=None, expiration_date_gte=None, expiration_date_lte=None, expiration_expression=None, strike_price_gte=None, strike_price_lte=None, type=None, status=None, root_symbol=None, limit=None)` – – Get option contracts with flexible filtering.
 * `get_option_latest_quote(option_symbol)` – Latest bid/ask on contract
 * `get_option_snapshot(symbol_or_symbols)` – Get Greeks and underlying
 * `place_option_market_order(legs, order_class=None, quantity=1, time_in_force=TimeInForce.DAY, extended_hours=False)` – Execute option strategy

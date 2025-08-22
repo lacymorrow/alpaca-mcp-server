@@ -1390,6 +1390,103 @@ async def get_corporate_announcements(
         return f"Error fetching corporate announcements: {str(e)}"
 
 # ============================================================================
+# Options Trading Helper Functions
+# ============================================================================
+
+def _parse_expiration_expression(expression: str) -> Dict[str, Any]:
+    """
+    Parse natural language expiration expressions into date parameters.
+    
+    Args:
+        expression (str): Natural language expression like "week of September 7, 2025"
+    
+    Returns:
+        Dict[str, Any]: Parsed parameters or error message
+    """
+    import re
+    from datetime import datetime, timedelta
+    
+    expression = expression.strip().lower()
+    
+    # Pattern for "week of [date]"
+    week_pattern = r'week\s+of\s+(\w+)\s+(\d{1,2}),?\s+(\d{4})'
+    week_match = re.search(week_pattern, expression)
+    
+    if week_match:
+        month_name, day_str, year_str = week_match.groups()
+        try:
+            # Parse the date
+            month_num = datetime.strptime(month_name, '%B').month
+            day = int(day_str)
+            year = int(year_str)
+            
+            # Create the anchor date
+            anchor_date = datetime(year, month_num, day).date()
+            
+            # Calculate the week range (Monday to Friday trading days)
+            # Find the Monday of the week containing the anchor date
+            days_since_monday = anchor_date.weekday()  # Monday=0, Sunday=6
+            week_start = anchor_date - timedelta(days=days_since_monday)  # Go to Monday
+            week_end = week_start + timedelta(days=4)  # Friday
+            
+            return {
+                'expiration_date_gte': week_start,
+                'expiration_date_lte': week_end,
+                'description': f"week of {month_name.title()} {day}, {year}"
+            }
+            
+        except (ValueError, AttributeError) as e:
+            return {'error': f"Invalid date in expression: {str(e)}"}
+    
+    # Pattern for "month of [month] [year]"
+    month_pattern = r'month\s+of\s+(\w+)\s+(\d{4})'
+    month_match = re.search(month_pattern, expression)
+    
+    if month_match:
+        month_name, year_str = month_match.groups()
+        try:
+            month_num = datetime.strptime(month_name, '%B').month
+            year = int(year_str)
+            
+            start_date = datetime(year, month_num, 1).date()
+            if month_num == 12:
+                end_date = datetime(year + 1, 1, 1).date() - timedelta(days=1)
+            else:
+                end_date = datetime(year, month_num + 1, 1).date() - timedelta(days=1)
+
+            return {
+                'expiration_date_gte': start_date,
+                'expiration_date_lte': end_date,
+                'description': f"month of {month_name.title()} {year}"
+            }
+            
+        except (ValueError, AttributeError) as e:
+            return {'error': f"Invalid month/year in expression: {str(e)}"}
+    
+    # Pattern for specific date like "September 7, 2025"
+    date_pattern = r'(\w+)\s+(\d{1,2}),?\s+(\d{4})'
+    date_match = re.search(date_pattern, expression)
+    
+    if date_match:
+        month_name, day_str, year_str = date_match.groups()
+        try:
+            month_num = datetime.strptime(month_name, '%B').month
+            day = int(day_str)
+            year = int(year_str)
+            
+            specific_date = datetime(year, month_num, day).date()
+            
+            return {
+                'expiration_date': specific_date,
+                'description': f"{month_name.title()} {day}, {year}"
+            }
+            
+        except (ValueError, AttributeError) as e:
+            return {'error': f"Invalid date in expression: {str(e)}"}
+    
+    return {'error': f"Unable to parse expression '{expression}'. Supported formats: 'week of September 7, 2025', 'month of December 2025', 'September 7, 2025'"}
+
+# ============================================================================
 # Options Trading Tools
 # ============================================================================
 
@@ -1397,9 +1494,9 @@ async def get_corporate_announcements(
 async def get_option_contracts(
     underlying_symbol: str,
     expiration_date: Optional[date] = None,
-    expiration_month: Optional[int] = None,
-    expiration_year: Optional[int] = None,
-    expiration_week_start: Optional[date] = None,
+    expiration_date_gte: Optional[date] = None,
+    expiration_date_lte: Optional[date] = None,
+    expiration_expression: Optional[str] = None,
     strike_price_gte: Optional[str] = None,
     strike_price_lte: Optional[str] = None,
     type: Optional[ContractType] = None,
@@ -1408,163 +1505,90 @@ async def get_option_contracts(
     limit: Optional[int] = None
 ) -> str:
     """
-    Retrieves metadata for option contracts based on specified criteria. This endpoint returns contract specifications
-    and static data, not real-time pricing information.
+    Retrieves option contracts - direct mapping to GetOptionContractsRequest.
     
     Args:
-        underlying_symbol (str): The symbol of the underlying asset (e.g., 'AAPL')
-        expiration_date (Optional[date]): Optional specific expiration date for the options
-        expiration_month (Optional[int]): Optional expiration month (1-12) to get all contracts for that month
-        expiration_year (Optional[int]): Optional expiration year (required if expiration_month is provided)
-        expiration_week_start (Optional[date]): Optional start date of week to find all contracts expiring in that week (Monday-Sunday)
-        strike_price_gte (Optional[str]): Optional minimum strike price
-        strike_price_lte (Optional[str]): Optional maximum strike price
-        type (Optional[ContractType]): Optional contract type (CALL or PUT)
-        status (Optional[AssetStatus]): Optional asset status filter (e.g., ACTIVE)
-        root_symbol (Optional[str]): Optional root symbol for the option
-        limit (Optional[int]): Optional maximum number of contracts to return
+        underlying_symbol (str): Underlying asset symbol (e.g., 'SPY', 'AAPL')
+        expiration_date (Optional[date]): Specific expiration date
+        expiration_date_gte (Optional[date]): Expiration date greater than or equal to
+        expiration_date_lte (Optional[date]): Expiration date less than or equal to
+        expiration_expression (Optional[str]): Natural language (e.g., "week of September 2, 2025")
+        strike_price_gte/lte (Optional[str]): Strike price range
+        type (Optional[ContractType]): "call" or "put"
+        status (Optional[AssetStatus]): "active" (default)
+        root_symbol (Optional[str]): Root symbol filter
+        limit (Optional[int]): Maximum number of contracts to return
     
-    Returns:
-        str: Formatted string containing option contract metadata including:
-            - Contract ID and Symbol
-            - Name and Type (Call/Put)
-            - Strike Price and Expiration Date
-            - Exercise Style (American/European)
-            - Contract Size and Status
-            - Open Interest and Close Price
-            - Underlying Asset Information ('underlying_asset_id', 'underlying_symbol', 'underlying_name', 'underlying_exchange')
-            - Trading Status (Tradable/Non-tradable)
-    
-    Note:
-        This endpoint returns contract specifications and static data. For real-time pricing
-        information (bid/ask prices, sizes, etc.), use get_option_latest_quote instead.
-        
-        For month-based queries, use expiration_month and expiration_year instead of expiration_date.
-        For week-based queries, use expiration_week_start to find all contracts expiring in that week.
-        The function will check all dates from Monday through Sunday of that week.
-        
-        When more than 500 contracts are found, a guidance message is displayed instead of 
-        overwhelming output to help users narrow their search criteria.
+    Examples:
+        get_option_contracts("NVDA", expiration_expression="week of September 2, 2025")
+        get_option_contracts("SPY", expiration_date_gte=date(2025,9,1), expiration_date_lte=date(2025,9,5))
     """
     try:
-        # Determine the appropriate expiration filtering strategy
-        use_specific_date = expiration_date is not None
-        use_month_filter = expiration_month is not None and expiration_year is not None
-        use_week_filter = expiration_week_start is not None
+        # Handle natural language expression
+        if expiration_expression:
+            parsed = _parse_expiration_expression(expiration_expression)
+            if parsed.get('error'):
+                return f"Error: {parsed['error']}"
+            
+            # Map parsed results directly to API parameters
+            if 'expiration_date' in parsed:
+                expiration_date = parsed['expiration_date']
+            elif 'expiration_date_gte' in parsed:
+                expiration_date_gte = parsed['expiration_date_gte']
+                expiration_date_lte = parsed['expiration_date_lte']
         
-        # Create the request object - if filtering by month or week, don't use expiration_date
-        request_expiration_date = expiration_date if use_specific_date and not use_month_filter and not use_week_filter else None
-        
-        # Create the request object with all available parameters
-        # Set a higher limit to get more contracts (default is 100, we use 1000 for comprehensive results)
+        # Create API request - direct mapping like your baseline example
         request = GetOptionContractsRequest(
             underlying_symbols=[underlying_symbol],
-            expiration_date=request_expiration_date,
+            expiration_date=expiration_date,
+            expiration_date_gte=expiration_date_gte,
+            expiration_date_lte=expiration_date_lte,
             strike_price_gte=strike_price_gte,
             strike_price_lte=strike_price_lte,
             type=type,
             status=status,
             root_symbol=root_symbol,
-            limit=limit if limit else 1000  # Default to 1000 to get more comprehensive results
+            limit=limit
         )
         
-        # Get the option contracts
+        # Execute API call
         response = trade_client.get_option_contracts(request)
         
         if not response or not response.option_contracts:
-            return f"No option contracts found for {underlying_symbol} matching the criteria."
+            return f"No option contracts found for {underlying_symbol}."
         
-        # Filter by month or week if specified
-        contracts_to_display = response.option_contracts
-        if use_month_filter:
-            contracts_to_display = [
-                contract for contract in response.option_contracts 
-                if contract.expiration_date.month == expiration_month and contract.expiration_date.year == expiration_year
-            ]
-            
-            if not contracts_to_display:
-                month_name = date(expiration_year, expiration_month, 1).strftime("%B")
-                return f"No option contracts found for {underlying_symbol} expiring in {month_name} {expiration_year}."
-        
-        elif use_week_filter:
-            # Calculate the week range (Monday to Sunday)
-            from datetime import timedelta
-            
-            # Find the Monday of the week containing expiration_week_start
-            days_since_monday = expiration_week_start.weekday()
-            week_start = expiration_week_start - timedelta(days=days_since_monday)
-            week_end = week_start + timedelta(days=6)  # Sunday
-            
-            contracts_to_display = [
-                contract for contract in response.option_contracts 
-                if week_start <= contract.expiration_date <= week_end
-            ]
-            
-            if not contracts_to_display:
-                return f"No option contracts found for {underlying_symbol} expiring during the week of {week_start.strftime('%B %d, %Y')}."
-        
-        # Format the response
-        if use_month_filter:
-            month_name = date(expiration_year, expiration_month, 1).strftime("%B")
-            result = f"Option Contracts for {underlying_symbol} expiring in {month_name} {expiration_year}:\n"
-        elif use_week_filter:
-            from datetime import timedelta
-            days_since_monday = expiration_week_start.weekday()
-            week_start = expiration_week_start - timedelta(days=days_since_monday)
-            week_end = week_start + timedelta(days=6)
-            result = f"Option Contracts for {underlying_symbol} expiring during the week of {week_start.strftime('%B %d')} - {week_end.strftime('%B %d, %Y')}:\n"
-        else:
-            result = f"Option Contracts for {underlying_symbol}:\n"
-        result += "----------------------------------------\n"
-        
-        # Check if there are too many results and provide guidance instead of overwhelming output
-        total_contracts = len(contracts_to_display)
-        max_display_contracts = 500  # Threshold to limit display and show guidance message instead
-        
-        # Sort contracts by expiration date and strike price
-        contracts_to_display.sort(key=lambda x: (x.expiration_date, float(x.strike_price)))
-        
-        if total_contracts > max_display_contracts:
-            # Too many results - provide simple guidance
-            result += f"Found {total_contracts} contracts. For easier viewing, please specify a particular expiration date or strike price range."
-            
-        else:
-            # Normal display for manageable number of results
-            for contract in contracts_to_display:
-                result += f"""
-                Symbol: {contract.symbol}
-                Name: {contract.name}
-                Type: {contract.type}
-                Strike Price: ${float(contract.strike_price):.2f}
-                Expiration Date: {contract.expiration_date}
-                Status: {contract.status}
-                Root Symbol: {contract.root_symbol}
-                Underlying Symbol: {contract.underlying_symbol}
-                Exercise Style: {contract.style}
-                Contract Size: {contract.size}
-                Tradable: {'Yes' if contract.tradable else 'No'}
-                Open Interest: {contract.open_interest}
-                Close Price: ${float(contract.close_price) if contract.close_price else 'N/A'}
-                Close Price Date: {contract.close_price_date}
-                -------------------------
-                """
-        
-        # Add summary information
-        if use_month_filter:
-            month_name = date(expiration_year, expiration_month, 1).strftime("%B")
-            result += f"\nTotal contracts found for {underlying_symbol} in {month_name} {expiration_year}: {total_contracts}"
-        elif use_week_filter:
-            from datetime import timedelta
-            days_since_monday = expiration_week_start.weekday()
-            week_start = expiration_week_start - timedelta(days=days_since_monday)
-            result += f"\nTotal contracts found for {underlying_symbol} during the week of {week_start.strftime('%B %d, %Y')}: {total_contracts}"
-        else:
-            result += f"\nTotal contracts found for {underlying_symbol}: {total_contracts}"
-        
-        return result
+        # Format results
+        contracts = response.option_contracts
+        result = [f"Option Contracts for {underlying_symbol}:", "=" * 50]
+
+        for contract in contracts:  # Show ALL contracts returned by API
+            contract_type = "Call" if contract.type == ContractType.CALL else "Put"
+            result.extend([
+                f"ID: {contract.id}",
+                f"Symbol: {contract.symbol}",
+                f"  Name: {contract.name}",
+                f"  Type: {contract_type}",
+                f"  Strike: ${contract.strike_price}",
+                f"  Expiration: {contract.expiration_date}",
+                f"  Style: {contract.style}",
+                f"  Contract Size: {contract.size}",
+                f"  Open Interest: {contract.open_interest or 'N/A'}",
+                f"  Open Interest Date: {contract.open_interest_date or 'N/A'}",
+                f"  Close Price: ${contract.close_price or 'N/A'}",
+                f"  Close Price Date: {contract.close_price_date or 'N/A'}",
+                f"  Tradable: {contract.tradable}",
+                f"  Status: {contract.status}",
+                f"  Root Symbol: {contract.root_symbol}",
+                f"  Underlying Asset ID: {contract.underlying_asset_id}",
+                f"  Underlying Symbol: {contract.underlying_symbol}",
+                "-" * 40
+            ])
+
+        result.append(f"\nTotal: {len(contracts)} contracts")
+        return "\n".join(result)
         
     except Exception as e:
-        return f"Error fetching option contracts: {str(e)}"
+        return f"Error: {str(e)}"
 
 @mcp.tool()
 async def get_option_latest_quote(
