@@ -6,8 +6,9 @@ This is a Model Context Protocol (MCP) server implementation for Alpaca's Tradin
 
 - **Market Data**
   - Real-time quotes, trades, and price bars for stocks
-  - Historical price data and trading history
-  - Option contract quotes and Greeks (via snapshots)
+  - Historical data with flexible timeframes (1Min to 1Month)
+  - Comprehensive stock snapshots and trade-level history
+  - Option contract quotes and Greeks
 - **Account Management**
   - View balances, buying power, and account status
   - Inspect all open and closed positions
@@ -15,13 +16,18 @@ This is a Model Context Protocol (MCP) server implementation for Alpaca's Tradin
   - Get detailed info on individual holdings
   - Liquidate all or partial positions by share count or percentage
 - **Order Management**
-  - Place stock and option orders (market or limit)
+  - Place stock, crypto, and option orders
+  - Support for market, limit, stop, stop-limit, and trailing-stop orders
   - Cancel orders individually or in bulk
   - Retrieve full order history
 - **Options Trading**
-  - Search and view option contracts by expiration or strike price
-  - Place multi-leg options strategies
-  - Get latest quotes and Greeks for contracts
+  - Search option contracts by expiration, strike price, and type
+  - Place single-leg or multi-leg options strategies (spreads, straddles, etc.)
+  - Get latest quotes, Greeks, and implied volatility
+- **Crypto Trading**
+  - Place market, limit, and stop-limit crypto orders
+  - Support for GTC and IOC time in force
+  - Handle quantity or notional-based orders
 - **Market Status & Corporate Actions**
   - Check if markets are open
   - Fetch market calendar and trading sessions
@@ -30,7 +36,8 @@ This is a Model Context Protocol (MCP) server implementation for Alpaca's Tradin
   - Create, update, and view personal watchlists
   - Manage multiple watchlists for tracking assets
 - **Asset Search**
-  - Query details for stocks and other Alpaca-supported assets
+  - Query details for stocks, crypto, and other Alpaca-supported assets
+  - Filter assets by status, class, exchange, and attributes
 
 ## Getting Started
 ### 0. Prerequisites
