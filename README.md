@@ -480,6 +480,10 @@ Environment variables can be set either with `-e` flags or in the `"env"` object
 * `cancel_order_by_id(order_id)` – Cancel a specific order
 * `cancel_all_orders()` – Cancel all open orders
 
+### Crypto
+
+* `place_crypto_order(symbol, side, order_type="market", time_in_force="gtc", qty=None, notional=None, limit_price=None, stop_price=None, client_order_id=None)` – Place a crypto order supporting market, limit, and stop_limit types with GTC/IOC time in force
+
 ### Options
 
 * `get_option_contracts(underlying_symbol, expiration_date=None, expiration_date_gte=None, expiration_date_lte=None, expiration_expression=None, strike_price_gte=None, strike_price_lte=None, type=None, status=None, root_symbol=None, limit=None)` – – Get option contracts with flexible filtering.
@@ -506,7 +510,7 @@ Environment variables can be set either with `-e` flags or in the `"env"` object
 * `get_all_assets(status=None, asset_class=None, exchange=None, attributes=None)` – List all tradable instruments with filtering options
 
 ## Example Natural Language Queries
-See the "Example Queries" section below for 50 real examples covering everything from trading to corporate data to option strategies.
+See the "Example Queries" section below for real examples covering everything from trading to corporate data to option strategies.
 
 ### Basic Trading
 1. What's my current account balance and buying power on Alpaca?
@@ -520,60 +524,64 @@ See the "Example Queries" section below for 50 real examples covering everything
 9. Place a limit order to buy 100 shares of MSFT at $450.
 10. Place a market order to sell 25 shares of META.
 
+### Crypto Trading
+11. Place a market order to buy 0.01 ETH/USD.
+12. Place a limit order to sell 0.01 BTC/USD at $110,000.
+
 ### Option Trading
-11. Show me available option contracts for AAPL expiring next month.
-12. Get the latest quote for the AAPL250613C00200000 option.
-13. Retrieve the option snapshot for the SPY250627P00400000 option.
-14. Liquidate my position in 2 contracts of QQQ calls expiring next week.
-15. Place a market order to buy 1 call option on AAPL expiring next Friday.
-16. What are the option Greeks for the TSLA250620P00500000 option?
-17. Find TSLA option contracts with strike prices within 5% of the current market price.
-18. Get SPY call options expiring the week of June 16th, 2025, within 10% of market price.
-19. Place a bull call spread using AAPL June 6th options: one with a 190.00 strike and the other with a 200.00 strike.
-20. Exercise my NVDA call option contract NVDA250919C001680.
+13. Show me available option contracts for AAPL expiring next month.
+14. Get the latest quote for the AAPL250613C00200000 option.
+15. Retrieve the option snapshot for the SPY250627P00400000 option.
+16. Liquidate my position in 2 contracts of QQQ calls expiring next week.
+17. Place a market order to buy 1 call option on AAPL expiring next Friday.
+18. What are the option Greeks for the TSLA250620P00500000 option?
+19. Find TSLA option contracts with strike prices within 5% of the current market price.
+20. Get SPY call options expiring the week of June 16th, 2025, within 10% of market price.
+21. Place a bull call spread using AAPL June 6th options: one with a 190.00 strike and the other with a 200.00 strike.
+22. Exercise my NVDA call option contract NVDA250919C001680.
 
 ### Market Information
-21. What are the market open and close times today?
-22. Show me the market calendar for next week.
-23. Show me recent cash dividends and stock splits for AAPL, MSFT, and GOOGL in the last 3 months.
-24. Get all corporate actions for SPY including dividends, splits, and any mergers in the past year.
-25. What are the upcoming corporate actions scheduled for SPY in the next 6 months?
+23. What are the market open and close times today?
+24. Show me the market calendar for next week.
+25. Show me recent cash dividends and stock splits for AAPL, MSFT, and GOOGL in the last 3 months.
+26. Get all corporate actions for SPY including dividends, splits, and any mergers in the past year.
+27. What are the upcoming corporate actions scheduled for SPY in the next 6 months?
 
 ### Historical & Real-time Data
-26. Show me AAPL's daily price history for the last 5 trading days.
-27. What was the closing price of TSLA yesterday?
-28. Get the latest bar for GOOGL.
-29. What was the latest trade price for NVDA?
-30. Show me the most recent quote for MSFT.
-31. Retrieve the last 100 trades for AMD.
-32. Show me 1-minute bars for AMZN from the last 2 hours.
-33. Get 5-minute intraday bars for TSLA from last Tuesday through last Friday.
-34. Get a comprehensive stock snapshot for AAPL showing latest quote, trade, minute bar, daily bar, and previous daily bar all in one view.
-35. Compare market snapshots for TSLA, NVDA, and MSFT to analyze their current bid/ask spreads, latest trade prices, and daily performance.
+28. Show me AAPL's daily price history for the last 5 trading days.
+29. What was the closing price of TSLA yesterday?
+30. Get the latest bar for GOOGL.
+31. What was the latest trade price for NVDA?
+32. Show me the most recent quote for MSFT.
+33. Retrieve the last 100 trades for AMD.
+34. Show me 1-minute bars for AMZN from the last 2 hours.
+35. Get 5-minute intraday bars for TSLA from last Tuesday through last Friday.
+36. Get a comprehensive stock snapshot for AAPL showing latest quote, trade, minute bar, daily bar, and previous daily bar all in one view.
+37. Compare market snapshots for TSLA, NVDA, and MSFT to analyze their current bid/ask spreads, latest trade prices, and daily performance.
 
 ### Orders
-36. Show me all my open and filled orders from this week.
-37. What orders do I have for AAPL?
-38. List all limit orders I placed in the past 3 days.
-39. Filter all orders by status: filled.
-40. Get me the order history for yesterday.
+38. Show me all my open and filled orders from this week.
+39. What orders do I have for AAPL?
+40. List all limit orders I placed in the past 3 days.
+41. Filter all orders by status: filled.
+42. Get me the order history for yesterday.
 
 ### Watchlists
 > At this moment, you can only view and update trading watchlists created via Alpaca’s Trading API through the API itself
-41. Create a new watchlist called "Tech Stocks" with AAPL, MSFT, and NVDA.
-42. Update my "Tech Stocks" watchlist to include TSLA and AMZN.
-43. What stocks are in my "Dividend Picks" watchlist?
-44. Remove META from my "Growth Portfolio" watchlist.
-45. List all my existing watchlists.
+43. Create a new watchlist called "Tech Stocks" with AAPL, MSFT, and NVDA.
+44. Update my "Tech Stocks" watchlist to include TSLA and AMZN.
+45. What stocks are in my "Dividend Picks" watchlist?
+46. Remove META from my "Growth Portfolio" watchlist.
+47. List all my existing watchlists.
 
 ### Asset Information
-46. Search for details about the asset 'AAPL'.
-47. Show me the top 5 tradable crypto assets by trading volume.
-48. Get all NASDAQ active US equity assets and filter the results to show only tradable securities
+48. Search for details about the asset 'AAPL'.
+49. Show me the top 5 tradable crypto assets by trading volume.
+50. Get all NASDAQ active US equity assets and filter the results to show only tradable securities
 
 ### Combined Scenarios
-49. Get today's market clock and show me my buying power before placing a limit buy order for TSLA at $340.
-50. Place a bull call spread with SPY July 3rd options: buy one 5% above and sell one 3% below the current SPY price.
+51. Get today's market clock and show me my buying power before placing a limit buy order for TSLA at $340.
+52. Place a bull call spread with SPY July 3rd options: buy one 5% above and sell one 3% below the current SPY price.
 
 ## Example Outputs
 

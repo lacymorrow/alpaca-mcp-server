@@ -901,19 +901,191 @@ async def place_stock_order(
         # Submit order
         order = trade_client.submit_order(order_data)
         return f"""
-                Order Placed Successfully:
-                -------------------------
-                Order ID: {order.id}
-                Symbol: {order.symbol}
-                Side: {order.side}
-                Quantity: {order.qty}
-                Type: {order.type}
-                Time In Force: {order.time_in_force}
-                Status: {order.status}
-                Client Order ID: {order.client_order_id}
+                Stock Order Placed Successfully:
+                --------------------------------
+                asset_class: {order.asset_class}
+                asset_id: {order.asset_id}
+                canceled_at: {order.canceled_at}
+                client_order_id: {order.client_order_id}
+                created_at: {order.created_at}
+                expired_at: {order.expired_at}
+                expires_at: {order.expires_at}
+                extended_hours: {order.extended_hours}
+                failed_at: {order.failed_at}
+                filled_at: {order.filled_at}
+                filled_avg_price: {order.filled_avg_price}
+                filled_qty: {order.filled_qty}
+                hwm: {order.hwm}
+                id: {order.id}
+                legs: {order.legs}
+                limit_price: {order.limit_price}
+                notional: {order.notional}
+                order_class: {order.order_class}
+                order_type: {order.order_type}
+                position_intent: {order.position_intent}
+                qty: {order.qty}
+                ratio_qty: {order.ratio_qty}
+                replaced_at: {order.replaced_at}
+                replaced_by: {order.replaced_by}
+                replaces: {order.replaces}
+                side: {order.side}
+                status: {order.status}
+                stop_price: {order.stop_price}
+                submitted_at: {order.submitted_at}
+                symbol: {order.symbol}
+                time_in_force: {order.time_in_force}
+                trail_percent: {order.trail_percent}
+                trail_price: {order.trail_price}
+                type: {order.type}
+                updated_at: {order.updated_at}
                 """
     except Exception as e:
         return f"Error placing order: {str(e)}"
+
+@mcp.tool()
+async def place_crypto_order(
+    symbol: str,
+    side: str,
+    order_type: str = "market",
+    time_in_force: Union[str, TimeInForce] = "gtc",
+    qty: Optional[float] = None,
+    notional: Optional[float] = None,
+    limit_price: Optional[float] = None,
+    stop_price: Optional[float] = None,
+    client_order_id: Optional[str] = None
+) -> str:
+    """
+    Place a crypto order (market, limit, stop_limit) with GTC/IOC TIF.
+
+    Rules:
+    - Market: require exactly one of qty or notional
+    - Limit: require qty and limit_price (notional not supported)
+    - Stop Limit: require qty, stop_price and limit_price (notional not supported)
+    - time_in_force: only GTC or IOC
+
+    Ref: 
+    - Crypto orders: https://docs.alpaca.markets/docs/crypto-orders
+    - Requests: [MarketOrderRequest](https://alpaca.markets/sdks/python/api_reference/trading/requests.html#marketorderrequest), [LimitOrderRequest](https://alpaca.markets/sdks/python/api_reference/trading/requests.html#limitorderrequest), [StopLimitOrderRequest](https://alpaca.markets/sdks/python/api_reference/trading/requests.html#stoplimitorderrequest)
+    - Enums: [TimeInForce](https://alpaca.markets/sdks/python/api_reference/trading/enums.html#alpaca.trading.enums.TimeInForce)
+    """
+    try:
+        # Validate side
+        if side.lower() == "buy":
+            order_side = OrderSide.BUY
+        elif side.lower() == "sell":
+            order_side = OrderSide.SELL
+        else:
+            return f"Invalid order side: {side}. Must be 'buy' or 'sell'."
+
+        # Validate and convert time_in_force to enum, allow only GTC/IOC
+        if isinstance(time_in_force, TimeInForce):
+            if time_in_force not in (TimeInForce.GTC, TimeInForce.IOC):
+                return "Invalid time_in_force for crypto. Use GTC or IOC."
+            tif_enum = time_in_force
+        elif isinstance(time_in_force, str):
+            tif_upper = time_in_force.upper()
+            if tif_upper == "GTC":
+                tif_enum = TimeInForce.GTC
+            elif tif_upper == "IOC":
+                tif_enum = TimeInForce.IOC
+            else:
+                return f"Invalid time_in_force: {time_in_force}. Valid options for crypto are: GTC, IOC"
+        else:
+            return f"Invalid time_in_force type: {type(time_in_force)}. Must be string or TimeInForce enum."
+
+        order_type_lower = order_type.lower()
+
+        if order_type_lower == "market":
+            if (qty is None and notional is None) or (qty is not None and notional is not None):
+                return "For MARKET orders, provide exactly one of qty or notional."
+            order_data = MarketOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                notional=notional,
+                side=order_side,
+                type=OrderType.MARKET,
+                time_in_force=tif_enum,
+                client_order_id=client_order_id or f"crypto_{int(time.time())}"
+            )
+        elif order_type_lower == "limit":
+            if limit_price is None:
+                return "limit_price is required for LIMIT orders."
+            if qty is None:
+                return "qty is required for LIMIT orders."
+            if notional is not None:
+                return "notional is not supported for LIMIT orders. Use qty instead."
+            order_data = LimitOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=order_side,
+                type=OrderType.LIMIT,
+                time_in_force=tif_enum,
+                limit_price=limit_price,
+                client_order_id=client_order_id or f"crypto_{int(time.time())}"
+            )
+        elif order_type_lower == "stop_limit":
+            if stop_price is None or limit_price is None:
+                return "Both stop_price and limit_price are required for STOP_LIMIT orders."
+            if qty is None:
+                return "qty is required for STOP_LIMIT orders."
+            if notional is not None:
+                return "notional is not supported for STOP_LIMIT orders. Use qty instead."
+            order_data = StopLimitOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=order_side,
+                type=OrderType.STOP_LIMIT,
+                time_in_force=tif_enum,
+                stop_price=stop_price,
+                limit_price=limit_price,
+                client_order_id=client_order_id or f"crypto_{int(time.time())}"
+            )
+        else:
+            return "Invalid order type for crypto. Use: market, limit, stop_limit."
+
+        order = trade_client.submit_order(order_data)
+
+        return f"""
+                Crypto Order Placed Successfully:
+                -------------------------------
+                asset_class: {order.asset_class}
+                asset_id: {order.asset_id}
+                canceled_at: {order.canceled_at}
+                client_order_id: {order.client_order_id}
+                created_at: {order.created_at}
+                expired_at: {order.expired_at}
+                expires_at: {order.expires_at}
+                extended_hours: {order.extended_hours}
+                failed_at: {order.failed_at}
+                filled_at: {order.filled_at}
+                filled_avg_price: {order.filled_avg_price}
+                filled_qty: {order.filled_qty}
+                hwm: {order.hwm}
+                id: {order.id}
+                legs: {order.legs}
+                limit_price: {order.limit_price}
+                notional: {order.notional}
+                order_class: {order.order_class}
+                order_type: {order.order_type}
+                position_intent: {order.position_intent}
+                qty: {order.qty}
+                ratio_qty: {order.ratio_qty}
+                replaced_at: {order.replaced_at}
+                replaced_by: {order.replaced_by}
+                replaces: {order.replaces}
+                side: {order.side}
+                status: {order.status}
+                stop_price: {order.stop_price}
+                submitted_at: {order.submitted_at}
+                symbol: {order.symbol}
+                time_in_force: {order.time_in_force}
+                trail_percent: {order.trail_percent}
+                trail_price: {order.trail_price}
+                type: {order.type}
+                updated_at: {order.updated_at}
+                """
+    except Exception as e:
+        return f"Error placing crypto order: {str(e)}"
 
 @mcp.tool()
 async def cancel_all_orders() -> str:
@@ -2263,6 +2435,8 @@ def parse_timeframe_with_enums(timeframe_str: str) -> Optional[TimeFrame]:
         
     except (ValueError, AttributeError, TypeError):
         return None
+
+
 
 # Run the server
 if __name__ == "__main__":
