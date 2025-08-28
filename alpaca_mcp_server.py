@@ -131,17 +131,6 @@ class DefaultArgs:
 # Only parse arguments when running as main script, use defaults when imported
 args = DefaultArgs()
 
-# Initialize FastMCP server with intelligent log level detection
-is_pycharm = detect_pycharm_environment()
-log_level = "ERROR" if is_pycharm else "INFO"
-
-# Optional: Print detection result for debugging (only in non-PyCharm environments)
-# Only print when running as main script to avoid noise when imported
-if not is_pycharm and __name__ == "__main__":
-    print(f"MCP Server starting with transport={args.transport}, log_level={log_level} (PyCharm detected: {is_pycharm})")
-
-mcp = FastMCP("alpaca-trading", log_level=log_level)
-
 # Initialize Alpaca clients using environment variables
 # Import our .env file within the same directory
 load_dotenv()
@@ -153,6 +142,20 @@ TRADE_API_URL = os.getenv("TRADE_API_URL")
 TRDE_API_WSS = os.getenv("TRDE_API_WSS")
 DATA_API_URL = os.getenv("DATA_API_URL")
 STREAM_DATA_WSS = os.getenv("STREAM_DATA_WSS")
+DEBUG = os.getenv("DEBUG", "False")
+
+# Initialize FastMCP server with intelligent log level detection
+is_pycharm = detect_pycharm_environment()
+log_level = "ERROR" if is_pycharm else "INFO"
+log_level = "DEBUG" if DEBUG.lower() == "true" else log_level
+
+# Optional: Print detection result for debugging (only in non-PyCharm environments)
+# Only print when running as main script to avoid noise when imported
+if not is_pycharm and __name__ == "__main__":
+    print(f"MCP Server starting with transport={args.transport}, log_level={log_level} (PyCharm detected: {is_pycharm})")
+
+mcp = FastMCP("alpaca-trading", log_level=log_level)
+
 
 # Check if keys are available
 if not TRADE_API_KEY or not TRADE_API_SECRET:
