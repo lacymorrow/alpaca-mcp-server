@@ -10,10 +10,11 @@ from dotenv import load_dotenv
 
 from alpaca.common.enums import SupportedCurrencies
 from alpaca.common.exceptions import APIError
-from alpaca.data.enums import DataFeed, OptionsFeed, CorporateActionsType
+from alpaca.data.enums import DataFeed, OptionsFeed, CorporateActionsType, CryptoFeed
 from alpaca.data.historical.option import OptionHistoricalDataClient
-from alpaca.data.historical.stock import StockHistoricalDataClient, StockLatestTradeRequest
+from alpaca.data.historical.stock import StockHistoricalDataClient
 from alpaca.data.historical.corporate_actions import CorporateActionsClient
+from alpaca.data.historical.crypto import CryptoHistoricalDataClient
 from alpaca.data.live.stock import StockDataStream
 from alpaca.data.requests import (
     OptionLatestQuoteRequest,
@@ -26,8 +27,12 @@ from alpaca.data.requests import (
     StockSnapshotRequest,
     StockTradesRequest,
     OptionChainRequest,
-    CorporateActionsRequest
+    CorporateActionsRequest,
+    CryptoBarsRequest,
+    CryptoQuoteRequest,
+    CryptoLatestQuoteRequest
 )
+
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import (
@@ -71,6 +76,7 @@ class TradingClientSigned(UserAgentMixin, TradingClient): pass
 class StockHistoricalDataClientSigned(UserAgentMixin, StockHistoricalDataClient): pass
 class OptionHistoricalDataClientSigned(UserAgentMixin, OptionHistoricalDataClient): pass
 class CorporateActionsClientSigned(UserAgentMixin, CorporateActionsClient): pass
+class CryptoHistoricalDataClientSigned(UserAgentMixin, CryptoHistoricalDataClient): pass
 
 def detect_pycharm_environment():
     """
@@ -175,6 +181,51 @@ stock_data_stream_client = StockDataStream(TRADE_API_KEY, TRADE_API_SECRET, url_
 option_historical_data_client = OptionHistoricalDataClientSigned(api_key=TRADE_API_KEY, secret_key=TRADE_API_SECRET)
 # For corporate actions data
 corporate_actions_client = CorporateActionsClientSigned(api_key=TRADE_API_KEY, secret_key=TRADE_API_SECRET)
+# For crypto historical data
+crypto_historical_data_client = CryptoHistoricalDataClientSigned(api_key=TRADE_API_KEY, secret_key=TRADE_API_SECRET)
+
+# ----------------------------------------------------------------------------
+# Centralized date parsing helpers
+# ----------------------------------------------------------------------------
+def _parse_iso_datetime(value: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO-like datetime string into a datetime.
+
+    Supports:
+      - Strings ending with 'Z' by converting to '+00:00'
+      - Date-only strings 'YYYY-MM-DD' by assuming midnight
+    Returns:
+      - datetime when a non-empty valid string is provided
+      - None when value is falsy or empty
+    Raises:
+      - ValueError if a non-empty string is provided but cannot be parsed
+    """
+    if not value:
+        return None
+    s = value.strip()
+    if not s:
+        return None
+    # Allow pure dates
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', s):
+        s = s + 'T00:00:00'
+    s = s.replace('Z', '+00:00')
+    try:
+        return datetime.fromisoformat(s)
+    except Exception as e:
+        raise ValueError(f"Invalid ISO datetime: {value}") from e
+
+
+def _parse_date_ymd(value: str) -> date:
+    """Parse 'YYYY-MM-DD' into a date object.
+    Raises ValueError on invalid input."""
+    return datetime.strptime(value, '%Y-%m-%d').date()
+
+
+def _month_name_to_number(name: str) -> int:
+    """Convert month name to month number. Accepts full and abbreviated names."""
+    try:
+        return datetime.strptime(name.title(), '%B').month
+    except ValueError:
+        return datetime.strptime(name.title(), '%b').month
 
 # ============================================================================
 # Account Information Tools
@@ -282,7 +333,7 @@ async def get_open_position(symbol: str) -> str:
         return f"Error fetching position: {str(e)}"
 
 # ============================================================================
-# Market Data Tools
+# Stock Market Data Tools
 # ============================================================================
 
 @mcp.tool()
@@ -362,13 +413,13 @@ async def get_stock_bars(
         
         if start:
             try:
-                start_time = datetime.fromisoformat(start.replace('Z', '+00:00'))
+                start_time = _parse_iso_datetime(start)
             except ValueError:
                 return f"Error: Invalid start time format '{start}'. Use ISO format like '2023-01-01T09:30:00' or '2023-01-01'"
                 
         if end:
             try:
-                end_time = datetime.fromisoformat(end.replace('Z', '+00:00'))
+                end_time = _parse_iso_datetime(end)
             except ValueError:
                 return f"Error: Invalid end time format '{end}'. Use ISO format like '2023-01-01T16:00:00' or '2023-01-01'"
         
@@ -571,7 +622,7 @@ async def get_stock_latest_bar(
         return f"Error fetching latest bar: {str(e)}"
 
 # ============================================================================
-# Market Data Tools - Stock Snapshot Data with Helper Functions
+# Stock Market Data Tools - Stock Snapshot Data with Helper Functions
 # ============================================================================
 
 def _format_ohlcv_bar(bar, bar_type: str, include_time: bool = True) -> str:
@@ -698,17 +749,214 @@ async def get_stock_snapshot(
         return f"Error retrieving stock snapshots: {str(e)}"
 
 # ============================================================================
+# CryptoMarket Data Tools
+# ============================================================================
+
+@mcp.tool()
+async def get_crypto_bars(
+    symbol: Union[str, List[str]], 
+    days: int = 1, 
+    timeframe: str = "1Hour",
+    limit: Optional[int] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    feed: CryptoFeed = CryptoFeed.US
+) -> str:
+    """
+    Retrieves and formats historical price bars for a cryptocurrency with configurable timeframe and time range.
+    
+    Args:
+        symbol (Union[str, List[str]]): Crypto symbol(s) (e.g., 'BTC/USD', 'ETH/USD' or ['BTC/USD', 'ETH/USD'])
+        days (int): Number of days to look back (default: 1, ignored if start/end provided)
+        timeframe (str): Bar timeframe - supports flexible Alpaca formats:
+            - Minutes: "1Min", "2Min", "3Min", "4Min", "5Min", "15Min", "30Min", etc.
+            - Hours: "1Hour", "2Hour", "3Hour", "4Hour", "6Hour", etc.
+            - Days: "1Day", "2Day", "3Day", etc.
+            - Weeks: "1Week", "2Week", etc.
+            - Months: "1Month", "2Month", etc.
+            (default: "1Hour")
+        limit (Optional[int]): Maximum number of bars to return (optional)
+        start (Optional[str]): Start time in ISO format (e.g., "2023-01-01T09:30:00" or "2023-01-01")
+        end (Optional[str]): End time in ISO format (e.g., "2023-01-01T16:00:00" or "2023-01-01")
+        feed (CryptoFeed): The crypto data feed to retrieve from (default: US)
+    
+    Returns:
+        str: Formatted string containing historical crypto price data with timestamps, OHLCV data
+    """
+    try:
+        # Parse timeframe string to TimeFrame object
+        timeframe_obj = parse_timeframe_with_enums(timeframe)
+        if timeframe_obj is None:
+            return f"Error: Invalid timeframe '{timeframe}'. Supported formats: 1Min, 2Min, 4Min, 5Min, 15Min, 30Min, 1Hour, 2Hour, 4Hour, 1Day, 1Week, 1Month, etc."
+        
+        # Parse start/end times or calculate from days
+        start_time = None
+        end_time = None
+        
+        if start:
+            try:
+                start_time = _parse_iso_datetime(start)
+            except ValueError:
+                return f"Error: Invalid start time format '{start}'. Use ISO format like '2023-01-01T09:30:00' or '2023-01-01'"
+                
+        if end:
+            try:
+                end_time = _parse_iso_datetime(end)
+            except ValueError:
+                return f"Error: Invalid end time format '{end}'. Use ISO format like '2023-01-01T16:00:00' or '2023-01-01'"
+        
+        # If no start/end provided, calculate from days parameter OR limit+timeframe
+        if not start_time:
+            if limit and timeframe_obj.unit_value in [TimeFrameUnit.Minute, TimeFrameUnit.Hour]:
+                # Calculate based on limit and timeframe for intraday data
+                if timeframe_obj.unit_value == TimeFrameUnit.Minute:
+                    minutes_back = limit * timeframe_obj.amount
+                    start_time = datetime.now() - timedelta(minutes=minutes_back)
+                elif timeframe_obj.unit_value == TimeFrameUnit.Hour:
+                    hours_back = limit * timeframe_obj.amount
+                    start_time = datetime.now() - timedelta(hours=hours_back)
+            elif timeframe_obj.unit_value in [TimeFrameUnit.Minute, TimeFrameUnit.Hour]:
+                # For intraday timeframes without limit, use a reasonable default
+                if timeframe_obj.unit_value == TimeFrameUnit.Minute:
+                    # Default to last 2 hours for minute timeframes
+                    start_time = datetime.now() - timedelta(hours=2)
+                elif timeframe_obj.unit_value == TimeFrameUnit.Hour:
+                    # Default to last 24 hours for hour timeframes
+                    start_time = datetime.now() - timedelta(hours=24)
+            else:
+                # Fall back to days parameter for daily+ timeframes
+                start_time = datetime.now() - timedelta(days=days)
+        if not end_time:
+            end_time = datetime.now()
+        
+        request_params = CryptoBarsRequest(
+            symbol_or_symbols=symbol,
+            timeframe=timeframe_obj,
+            start=start_time,
+            end=end_time,
+            limit=limit
+        )
+        
+        bars = crypto_historical_data_client.get_crypto_bars(request_params, feed=feed)
+        
+        if bars[symbol]:
+            time_range = f"{start_time.strftime('%Y-%m-%d %H:%M')} to {end_time.strftime('%Y-%m-%d %H:%M')}"
+            result = f"Historical Crypto Data for {symbol} ({timeframe} bars, {time_range}):\n"
+            result += "---------------------------------------------------\n"
+            
+            for bar in bars[symbol]:
+                # Format timestamp based on timeframe unit
+                if timeframe_obj.unit_value in [TimeFrameUnit.Minute, TimeFrameUnit.Hour]:
+                    time_str = bar.timestamp.strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    time_str = bar.timestamp.date()
+                
+                result += f"Time: {time_str}, Open: ${bar.open:.6f}, High: ${bar.high:.6f}, Low: ${bar.low:.6f}, Close: ${bar.close:.6f}, Volume: {bar.volume}\n"
+            
+            return result
+        else:
+            return f"No historical crypto data found for {symbol} with {timeframe} timeframe in the specified time range."
+    except Exception as e:
+        return f"Error fetching historical crypto data for {symbol}: {str(e)}"
+
+@mcp.tool()
+async def get_crypto_quotes(
+    symbol: Union[str, List[str]],
+    days: int = 3,
+    limit: Optional[int] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    feed: CryptoFeed = CryptoFeed.US
+) -> str:
+    """
+    Retrieves and formats historical quote data for a cryptocurrency.
+    
+    Args:
+        symbol (Union[str, List[str]]): Crypto symbol(s) (e.g., 'BTC/USD', 'ETH/USD' or ['BTC/USD', 'ETH/USD'])
+        days (int): Number of days to look back (default: 3, ignored if start/end provided)
+        limit (Optional[int]): Maximum number of quotes to return (optional)
+        start (Optional[str]): Start time in ISO format (e.g., "2023-01-01T09:30:00" or "2023-01-01")
+        end (Optional[str]): End time in ISO format (e.g., "2023-01-01T16:00:00" or "2023-01-01")
+        feed (CryptoFeed): The crypto data feed to retrieve from (default: US)
+    
+    Returns:
+        str: Formatted string containing historical crypto quote data with timestamps, bid/ask prices and sizes
+    """
+    try:
+        # Parse start/end times or calculate from days
+        start_time = None
+        end_time = None
+        
+        if start:
+            try:
+                start_time = _parse_iso_datetime(start)
+            except ValueError:
+                return f"Error: Invalid start time format '{start}'. Use ISO format like '2023-01-01T09:30:00' or '2023-01-01'"
+                
+        if end:
+            try:
+                end_time = _parse_iso_datetime(end)
+            except ValueError:
+                return f"Error: Invalid end time format '{end}'. Use ISO format like '2023-01-01T16:00:00' or '2023-01-01'"
+        
+        # If no start/end provided, calculate from days parameter
+        if not start_time:
+            start_time = datetime.now() - timedelta(days=days)
+        if not end_time:
+            end_time = datetime.now()
+        
+        request_params = CryptoQuoteRequest(
+            symbol_or_symbols=symbol,
+            start=start_time,
+            end=end_time,
+            limit=limit
+        )
+        
+        quotes = crypto_historical_data_client.get_crypto_quotes(request_params, feed=feed)
+        
+        # Use the exact same simple pattern as crypto bars
+        if quotes[symbol]:
+            time_range = f"{start_time.strftime('%Y-%m-%d %H:%M')} to {end_time.strftime('%Y-%m-%d %H:%M')}"
+            result = f"Historical Crypto Quotes for {symbol} ({time_range}):\n"
+            result += "---------------------------------------------------\n"
+            
+            for quote in quotes[symbol]:
+                time_str = quote.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]  # Include milliseconds
+                result += f"Time: {time_str}, Bid: ${quote.bid_price:.6f} (Size: {quote.bid_size:.6f}), Ask: ${quote.ask_price:.6f} (Size: {quote.ask_size:.6f})\n"
+            
+            return result
+        else:
+            return f"No historical crypto quotes found for {symbol} in the specified time range."
+    except Exception as e:
+        return f"Error fetching historical crypto quotes for {symbol}: {str(e)}"
+
+# ============================================================================
 # Order Management Tools
 # ============================================================================
 
 @mcp.tool()
-async def get_orders(status: str = "all", limit: int = 10) -> str:
+async def get_orders(
+    status: str = "all", 
+    limit: int = 10,
+    after: Optional[str] = None,
+    until: Optional[str] = None,
+    direction: Optional[str] = None,
+    nested: Optional[bool] = None,
+    side: Optional[str] = None,
+    symbols: Optional[List[str]] = None
+) -> str:
     """
-    Retrieves and formats orders with the specified status.
+    Retrieves and formats orders with the specified filters.
     
     Args:
         status (str): Order status to filter by (open, closed, all)
-        limit (int): Maximum number of orders to return (default: 10)
+        limit (int): Maximum number of orders to return (default: 10, max 500)
+        after (Optional[str]): Include orders submitted after this timestamp (ISO format)
+        until (Optional[str]): Include orders submitted until this timestamp (ISO format)
+        direction (Optional[str]): Chronological order (asc or desc, default: desc)
+        nested (Optional[bool]): Roll up multi-leg orders under legs field if True
+        side (Optional[str]): Filter by order side (buy or sell)
+        symbols (Optional[List[str]]): List of symbols to filter by
     
     Returns:
         str: Formatted string containing order details including:
@@ -729,10 +977,50 @@ async def get_orders(status: str = "all", limit: int = 10) -> str:
             query_status = QueryOrderStatus.CLOSED
         else:
             query_status = QueryOrderStatus.ALL
+        
+        # Convert direction string to enum if provided
+        direction_enum = None
+        if direction:
+            if direction.lower() == "asc":
+                direction_enum = Sort.ASC
+            elif direction.lower() == "desc":
+                direction_enum = Sort.DESC
+            else:
+                return f"Invalid direction: {direction}. Must be 'asc' or 'desc'."
+        
+        # Convert side string to enum if provided
+        side_enum = None
+        if side:
+            if side.lower() == "buy":
+                side_enum = OrderSide.BUY
+            elif side.lower() == "sell":
+                side_enum = OrderSide.SELL
+            else:
+                return f"Invalid side: {side}. Must be 'buy' or 'sell'."
+        
+        # Parse datetime strings if provided
+        after_dt = None
+        until_dt = None
+        if after:
+            try:
+                after_dt = _parse_iso_datetime(after)
+            except ValueError:
+                return f"Invalid 'after' timestamp format: {after}. Use ISO format like '2023-01-01T09:30:00'"
+        if until:
+            try:
+                until_dt = _parse_iso_datetime(until)
+            except ValueError:
+                return f"Invalid 'until' timestamp format: {until}. Use ISO format like '2023-01-01T16:00:00'"
             
         request_params = GetOrdersRequest(
             status=query_status,
-            limit=limit
+            limit=limit,
+            after=after_dt,
+            until=until_dt,
+            direction=direction_enum,
+            nested=nested,
+            side=side_enum,
+            symbols=symbols
         )
         
         orders = trade_client.get_orders(request_params)
@@ -744,20 +1032,67 @@ async def get_orders(status: str = "all", limit: int = 10) -> str:
         result += "-----------------------------------\n"
         
         for order in orders:
-            result += f"""
-                        Symbol: {order.symbol}
-                        ID: {order.id}
-                        Type: {order.type}
-                        Side: {order.side}
-                        Quantity: {order.qty}
-                        Status: {order.status}
-                        Submitted At: {order.submitted_at}
-                        """
+            result += f"Symbol: {order.symbol}\n"
+            result += f"ID: {order.id}\n"
+            result += f"Type: {order.type}\n"
+            result += f"Side: {order.side}\n"
+            result += f"Quantity: {order.qty}\n"
+            result += f"Status: {order.status}\n"
+            result += f"Asset Class: {order.asset_class}\n"
+            result += f"Order Class: {order.order_class}\n"
+            result += f"Time In Force: {order.time_in_force}\n"
+            result += f"Extended Hours: {order.extended_hours}\n"
+            result += f"Submitted At: {order.submitted_at}\n"
+            result += f"Created At: {order.created_at}\n"
+            result += f"Updated At: {order.updated_at}\n"
+            
+            # Additional core fields (these are optional)
+            if hasattr(order, 'asset_id') and order.asset_id:
+                result += f"Asset ID: {order.asset_id}\n"
+            if hasattr(order, 'order_type') and order.order_type:
+                result += f"Order Type: {order.order_type}\n"
+            if hasattr(order, 'ratio_qty') and order.ratio_qty:
+                result += f"Ratio Quantity: {order.ratio_qty}\n"
+            
+            # Optional fields that may not always be present
             if hasattr(order, 'filled_at') and order.filled_at:
                 result += f"Filled At: {order.filled_at}\n"
-                
             if hasattr(order, 'filled_avg_price') and order.filled_avg_price:
                 result += f"Filled Price: ${float(order.filled_avg_price):.2f}\n"
+            if hasattr(order, 'filled_qty') and order.filled_qty:
+                result += f"Filled Quantity: {order.filled_qty}\n"
+            if hasattr(order, 'limit_price') and order.limit_price:
+                result += f"Limit Price: ${float(order.limit_price):.2f}\n"
+            if hasattr(order, 'stop_price') and order.stop_price:
+                result += f"Stop Price: ${float(order.stop_price):.2f}\n"
+            if hasattr(order, 'trail_price') and order.trail_price:
+                result += f"Trail Price: ${float(order.trail_price):.2f}\n"
+            if hasattr(order, 'trail_percent') and order.trail_percent:
+                result += f"Trail Percent: {order.trail_percent}%\n"
+            if hasattr(order, 'notional') and order.notional:
+                result += f"Notional: ${float(order.notional):.2f}\n"
+            if hasattr(order, 'position_intent') and order.position_intent:
+                result += f"Position Intent: {order.position_intent}\n"
+            if hasattr(order, 'client_order_id') and order.client_order_id:
+                result += f"Client Order ID: {order.client_order_id}\n"
+            if hasattr(order, 'canceled_at') and order.canceled_at:
+                result += f"Canceled At: {order.canceled_at}\n"
+            if hasattr(order, 'expired_at') and order.expired_at:
+                result += f"Expired At: {order.expired_at}\n"
+            if hasattr(order, 'expires_at') and order.expires_at:
+                result += f"Expires At: {order.expires_at}\n"
+            if hasattr(order, 'failed_at') and order.failed_at:
+                result += f"Failed At: {order.failed_at}\n"
+            if hasattr(order, 'replaced_at') and order.replaced_at:
+                result += f"Replaced At: {order.replaced_at}\n"
+            if hasattr(order, 'replaced_by') and order.replaced_by:
+                result += f"Replaced By: {order.replaced_by}\n"
+            if hasattr(order, 'replaces') and order.replaces:
+                result += f"Replaces: {order.replaces}\n"
+            if hasattr(order, 'legs') and order.legs:
+                result += f"Legs: {order.legs}\n"
+            if hasattr(order, 'hwm') and order.hwm:
+                result += f"HWM: {order.hwm}\n"
                 
             result += "-----------------------------------\n"
             
@@ -1162,7 +1497,8 @@ async def cancel_order_by_id(order_id: str) -> str:
 @mcp.tool()
 async def close_position(symbol: str, qty: Optional[str] = None, percentage: Optional[str] = None) -> str:
     """
-    Closes a specific position for a single symbol.
+    Closes a specific position for a single symbol. 
+    This method will throw an error if the position does not exist!
     
     Args:
         symbol (str): The symbol of the position to close
@@ -1445,8 +1781,8 @@ async def get_market_calendar(start_date: str, end_date: str) -> str:
     """
     try:
         # Convert string dates to date objects
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d").date()
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d").date()
+        start_dt = _parse_date_ymd(start_date)
+        end_dt = _parse_date_ymd(end_date)
         
         # Create the request object with the correct parameters
         calendar_request = GetCalendarRequest(start=start_dt, end=end_dt)
@@ -1611,7 +1947,7 @@ def _parse_expiration_expression(expression: str) -> Dict[str, Any]:
         month_name, day_str, year_str = week_match.groups()
         try:
             # Parse the date
-            month_num = datetime.strptime(month_name, '%B').month
+            month_num = _month_name_to_number(month_name)
             day = int(day_str)
             year = int(year_str)
             
@@ -1640,7 +1976,7 @@ def _parse_expiration_expression(expression: str) -> Dict[str, Any]:
     if month_match:
         month_name, year_str = month_match.groups()
         try:
-            month_num = datetime.strptime(month_name, '%B').month
+            month_num = _month_name_to_number(month_name)
             year = int(year_str)
             
             start_date = datetime(year, month_num, 1).date()
@@ -1665,7 +2001,7 @@ def _parse_expiration_expression(expression: str) -> Dict[str, Any]:
     if date_match:
         month_name, day_str, year_str = date_match.groups()
         try:
-            month_num = datetime.strptime(month_name, '%B').month
+            month_num = _month_name_to_number(month_name)
             day = int(day_str)
             year = int(year_str)
             
@@ -2369,13 +2705,21 @@ async def place_option_market_order(
         4. Contacting support if the issue persists
         """
 
+
+# ============================================================================
+# Helper Functions and Utilities
+# ============================================================================
+# The following functions are internal helper functions used by the MCP tools
+# for data parsing, validation, formatting, and other utility operations.
+# ============================================================================
+
 def parse_timeframe_with_enums(timeframe_str: str) -> Optional[TimeFrame]:
     """
     Parse timeframe string to Alpaca TimeFrame object using proper enumerations.
-    Supports flexible parsing of any valid timeframe format.
+    Supports standard Alpaca formats and common natural language variations.
     
     Args:
-        timeframe_str (str): Timeframe string (e.g., "1Min", "4Min", "2Hour", "1Day")
+        timeframe_str (str): Timeframe string (e.g., "1Min", "30 mins", "1 hour", "daily")
         
     Returns:
         Optional[TimeFrame]: Parsed TimeFrame object using TimeFrameUnit enums or None if invalid
@@ -2385,9 +2729,14 @@ def parse_timeframe_with_enums(timeframe_str: str) -> Optional[TimeFrame]:
     """
     
     try:
+        if not timeframe_str or not isinstance(timeframe_str, str):
+            return None
+            
         timeframe_str = timeframe_str.strip()
+        if not timeframe_str:
+            return None
         
-        # Use predefined TimeFrame objects for common cases (more efficient)
+        # Use predefined TimeFrame objects for common cases (most efficient)
         predefined_timeframes = {
             "1Min": TimeFrame.Minute,
             "1Hour": TimeFrame.Hour, 
@@ -2399,46 +2748,86 @@ def parse_timeframe_with_enums(timeframe_str: str) -> Optional[TimeFrame]:
         if timeframe_str in predefined_timeframes:
             return predefined_timeframes[timeframe_str]
         
-        # Flexible regex pattern to parse any valid timeframe format
-        # Matches: <number><unit> where unit can be Min, Hour, Day, Week, Month
-        pattern = r'^(\d+)(Min|Hour|Day|Week|Month)$'
-        match = re.match(pattern, timeframe_str, re.IGNORECASE)
+        # Normalize input for flexible parsing
+        normalized = re.sub(r'\s+', ' ', timeframe_str.lower().strip())
         
-        if not match:
-            return None
-            
-        amount = int(match.group(1))
-        unit_str = match.group(2).lower()
-        
-        # Map unit strings to TimeFrameUnit enums
-        unit_mapping = {
-            'min': TimeFrameUnit.Minute,
-            'hour': TimeFrameUnit.Hour,
-            'day': TimeFrameUnit.Day,
-            'week': TimeFrameUnit.Week,
-            'month': TimeFrameUnit.Month
+        # Common expressions that map directly to timeframes
+        direct_mappings = {
+            'half hour': (30, TimeFrameUnit.Minute),
+            'quarter hour': (15, TimeFrameUnit.Minute),
+            'hourly': (1, TimeFrameUnit.Hour),
+            'daily': (1, TimeFrameUnit.Day),
+            'weekly': (1, TimeFrameUnit.Week),
+            'monthly': (1, TimeFrameUnit.Month)
         }
         
-        unit = unit_mapping.get(unit_str)
-        if unit is None:
-            return None
+        if normalized in direct_mappings:
+            amount, unit = direct_mappings[normalized]
+            return TimeFrame(amount, unit)
+        
+        # Comprehensive pattern to handle most variations
+        # Matches: number + unit (with optional spaces, hyphens, plurals)
+        pattern = r'^(\d+)\s*[-\s]*\s*(min|minute|minutes|hr|hour|hours|day|days|week|weeks|month|months)s?$'
+        match = re.match(pattern, normalized)
+        
+        if match:
+            amount = int(match.group(1))
+            unit_str = match.group(2)
             
-        # Validate amount based on unit type
-        if unit == TimeFrameUnit.Minute and amount > 59:
-            # Minutes should be reasonable (1-59)
-            return None
-        elif unit == TimeFrameUnit.Hour and amount > 23:
-            # Hours should be reasonable (1-23) 
-            return None
-        elif unit in [TimeFrameUnit.Day, TimeFrameUnit.Week, TimeFrameUnit.Month] and amount > 365:
-            # Days/weeks/months should be reasonable
-            return None
+            # Map unit strings to TimeFrameUnit enums
+            unit_mapping = {
+                'min': TimeFrameUnit.Minute, 'minute': TimeFrameUnit.Minute, 'minutes': TimeFrameUnit.Minute,
+                'hr': TimeFrameUnit.Hour, 'hour': TimeFrameUnit.Hour, 'hours': TimeFrameUnit.Hour,
+                'day': TimeFrameUnit.Day, 'days': TimeFrameUnit.Day,
+                'week': TimeFrameUnit.Week, 'weeks': TimeFrameUnit.Week,
+                'month': TimeFrameUnit.Month, 'months': TimeFrameUnit.Month
+            }
             
-        return TimeFrame(amount, unit)
+            unit = unit_mapping.get(unit_str)
+            if unit and _validate_amount(amount, unit):
+                return TimeFrame(amount, unit)
+        
+        # Try case-insensitive standard Alpaca formats
+        alpaca_pattern = r'^(\d+)(min|hour|day|week|month)s?$'
+        match = re.match(alpaca_pattern, normalized)
+        
+        if match:
+            amount = int(match.group(1))
+            unit_str = match.group(2)
+            
+            unit_mapping = {
+                'min': TimeFrameUnit.Minute,
+                'hour': TimeFrameUnit.Hour,
+                'day': TimeFrameUnit.Day,
+                'week': TimeFrameUnit.Week,
+                'month': TimeFrameUnit.Month
+            }
+            
+            unit = unit_mapping.get(unit_str)
+            if unit and _validate_amount(amount, unit):
+                return TimeFrame(amount, unit)
+            
+        return None
         
     except (ValueError, AttributeError, TypeError):
         return None
 
+
+def _validate_amount(amount: int, unit: TimeFrameUnit) -> bool:
+    """
+    Validate that the amount is reasonable for the given unit.
+    """
+    if amount <= 0:
+        return False
+        
+    if unit == TimeFrameUnit.Minute and amount > 59:
+        return False
+    elif unit == TimeFrameUnit.Hour and amount > 23:
+        return False
+    elif unit in [TimeFrameUnit.Day, TimeFrameUnit.Week, TimeFrameUnit.Month] and amount > 365:
+        return False
+        
+    return True
 
 
 # Run the server
