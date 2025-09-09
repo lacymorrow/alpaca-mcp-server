@@ -3,9 +3,6 @@ version: '3.8'
 services:
   app:
     build: .
-    volumes:
-      # Link opencode.json file so changes are reflected immediately
-      - ./opencode.json:/app/opencode.json
     environment:
       - ALPACA_API_KEY=${ALPACA_API_KEY:-test}
       - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-test}
