@@ -1,0 +1,17 @@
+{
+    "$schema": "https://opencode.ai/config.json",
+    "mcp": {
+      "alpaca": {
+        "enabled": true,
+        "type": "local",
+        "command": ["python",
+          "/app/alpaca_mcp_server.py"],
+        "environment": {}
+      },
+      "exa": {
+        "enabled": true,
+        "type": "remote",
+        "url": "https://mcp.exa.ai/mcp?exaApiKey=5ec08d79-c9db-4808-bfbb-e888355f9f94"
+      }
+    }
+}

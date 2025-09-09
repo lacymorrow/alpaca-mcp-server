@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    volumes:
+      # Link opencode.json file so changes are reflected immediately
+      - ./opencode.json:/app/opencode.json
+    environment:
+      - ALPACA_API_KEY=${ALPACA_API_KEY:-test}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-test}
+      - ALPACA_PAPER_TRADE=${ALPACA_PAPER_TRADE:-True}
+    ports:
+      - "8001:8000"
+    command: ["python", "alpaca_mcp_server.py", "--transport", "http", "--host", "0.0.0.0"]
+    # For testing bind mount without credentials - uncomment next line and comment above
+    # command: ["tail", "-f", "/dev/null"]
