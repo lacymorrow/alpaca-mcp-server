@@ -1,6 +1,23 @@
 # Alpaca MCP Server
 
-This is a Model Context Protocol (MCP) server implementation for Alpaca's Trading API. It enables large language models (LLMs) on Claude Desktop, Cursor, or VScode to interact with Alpaca's trading infrastructure using natural language (English). This server supports stock trading, options trading, portfolio management, watchlist handling, and real-time market data access.
+This is a Model Context Protocol (MCP) server implementation for Alpaca's Trading API, plus an **autonomous trading bot** powered by Claude Code. It enables large language models (LLMs) on Claude Desktop, Cursor, or VSCode to interact with Alpaca's trading infrastructure using natural language (English). This server supports stock trading, options trading, portfolio management, watchlist handling, and real-time market data access.
+
+## Autonomous Trading Bot
+
+This repository also includes a fully autonomous trading bot that runs on a cron schedule, making trading decisions using Claude Code CLI with MCP servers for market data and news.
+
+**Quick Start:**
+```bash
+# Configure environment
+cp .env.example .env
+# Edit .env with your API keys
+
+# Build and run
+docker compose build
+docker compose up -d trading-bot
+```
+
+See [Trading Bot Documentation](#autonomous-trading-bot-1) below for full details.
 
 ## Features
 
@@ -705,6 +722,135 @@ This server can place real trades and access your portfolio. Treat your API keys
 ## Usage Analytics Notice
 
 The user agent for API calls defaults to 'ALPACA-MCP-SERVER' to help Alpaca identify MCP server usage and improve user experience. You can opt out by modifying the 'USER_AGENT' constant in '.github/core/user_agent_mixin.py' or by removing the 'UserAgentMixin' from the client class definitions in 'alpaca_mcp_server.py' — though we kindly hope you'll keep it enabled to support ongoing improvements.
+
+---
+
+## Autonomous Trading Bot
+
+A fully autonomous trading bot that uses Claude Code CLI to make trading decisions based on market data, news, and a self-evolving strategy.
+
+### Features
+
+- **Autonomous Operation**: Runs on cron schedule without human intervention
+- **MCP Integration**: Uses Alpaca MCP server for trading + Polygon.io for news data
+- **Self-Evolving Strategy**: Bot can modify its own `strategy.md` and `plan.md` files
+- **Slack Notifications**: Sends summary after each tick + error alerts
+- **Full Trading Capability**: Stocks (Phase 1), with crypto and options planned
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     Docker Container                        │
+│                                                             │
+│  ┌─────────────┐    ┌──────────────┐    ┌───────────────┐  │
+│  │   Cron      │───▶│  tick.py     │───▶│  Claude Code  │  │
+│  │  (15 min)   │    │  (Python)    │    │     CLI       │  │
+│  └─────────────┘    └──────────────┘    └───────┬───────┘  │
+│                                                  │          │
+│                     ┌────────────────────────────┘          │
+│                     ▼                                       │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              MCP Servers (stdio)                     │   │
+│  │  ┌─────────────────┐    ┌──────────────────────┐    │   │
+│  │  │     Alpaca      │    │     Polygon.io       │    │   │
+│  │  │   (trading)     │    │   (news & data)      │    │   │
+│  │  └─────────────────┘    └──────────────────────┘    │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │           Persistent State (/data/alpaca-bot)       │   │
+│  │  state.json │ plan.md │ strategy.md │ logs/         │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Quick Start
+
+1. **Configure Environment**
+   ```bash
+   cp .env.example .env
+   ```
+
+   Required variables:
+   ```
+   ALPACA_API_KEY=your_key
+   ALPACA_SECRET_KEY=your_secret
+   ALPACA_PAPER_TRADE=True
+   ANTHROPIC_API_KEY=your_anthropic_key
+   POLYGON_API_KEY=your_polygon_key
+   SLACK_WEBHOOK_URL=your_slack_webhook
+   ```
+
+2. **Build and Run**
+   ```bash
+   docker compose build
+   docker compose up -d trading-bot
+   ```
+
+3. **Monitor**
+   ```bash
+   # View logs
+   docker compose logs -f trading-bot
+
+   # Check state
+   docker compose run --rm trading-bot cat /data/alpaca-bot/state.json
+
+   # Run manual tick
+   docker compose run --rm trading-bot gosu botuser /usr/local/bin/tick.py --analysis-only
+   ```
+
+### Cron Schedule
+
+| Time | Frequency | Mode |
+|------|-----------|------|
+| 9:30 AM - 4:00 PM ET (Mon-Fri) | Every 15 min | Full trading |
+| Off-hours (Mon-Fri) | Every 2 hours | Analysis only |
+| Weekends | 10 AM, 6 PM | Analysis only |
+
+### State Files
+
+| File | Purpose |
+|------|---------|
+| `state.json` | Positions, buying power, action history |
+| `plan.md` | Short-term trading plan (bot-editable) |
+| `strategy.md` | Trading strategy (bot-editable) |
+| `logs/actions.ndjson` | Decision log |
+| `logs/errors.ndjson` | Error log |
+
+### Slack Notifications
+
+The bot sends two types of Slack notifications:
+
+**Tick Summary** (after each successful tick):
+- Portfolio value and P/L
+- Any trades executed
+- Market status
+- Top positions
+- Bot's notes
+
+**Error Alert** (on failures):
+- Error message
+- Tick time
+- Last action
+
+### Configuration Files
+
+- `scripts/tick.py` - Main bot script
+- `mcp-config.json` - MCP server configuration
+- `crontab` - Cron schedule
+- `templates/` - Initial strategy and plan templates
+
+### Technical Details
+
+- **Non-root execution**: Bot runs as `botuser` (required for `--dangerously-skip-permissions`)
+- **MCP servers**: Alpaca (trading) + Polygon.io (news/data)
+- **Timeout**: 5-minute timeout on Claude Code execution
+- **Model**: Uses Claude Opus, falls back to Sonnet when quota exhausted
+
+For full specification, see [SPEC.md](SPEC.md).
+
+---
 
 ## License
 

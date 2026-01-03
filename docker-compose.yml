@@ -1,14 +1,34 @@
-version: '3.8'
-
 services:
-  app:
+  # Main trading bot - runs cron-based autonomous trading
+  trading-bot:
     build: .
     environment:
-      - ALPACA_API_KEY=${ALPACA_API_KEY:-test}
-      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY:-test}
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
+      - ALPACA_PAPER_TRADE=${ALPACA_PAPER_TRADE:-True}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - POLYGON_API_KEY=${POLYGON_API_KEY:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - TZ=America/New_York
+      - STATE_DIR=/data/alpaca-bot
+    volumes:
+      - bot-data:/data/alpaca-bot
+    restart: unless-stopped
+    # Uses default entrypoint (cron-based trading bot)
+
+  # MCP server for manual/HTTP access (optional)
+  mcp-server:
+    build: .
+    environment:
+      - ALPACA_API_KEY=${ALPACA_API_KEY}
+      - ALPACA_SECRET_KEY=${ALPACA_SECRET_KEY}
       - ALPACA_PAPER_TRADE=${ALPACA_PAPER_TRADE:-True}
     ports:
       - "8001:8000"
     command: ["python", "alpaca_mcp_server.py", "--transport", "http", "--host", "0.0.0.0"]
-    # For testing bind mount without credentials - uncomment next line and comment above
-    # command: ["tail", "-f", "/dev/null"]
+    profiles:
+      - mcp  # Only starts with: docker compose --profile mcp up
+
+volumes:
+  bot-data:
+    # Persists state.json, plan.md, strategy.md, and logs

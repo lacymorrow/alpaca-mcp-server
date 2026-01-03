@@ -1,0 +1,32 @@
+# Alpaca Trading Bot Cron Schedule
+# Timezone: America/New_York (set via TZ env var in container)
+
+# Environment variables for cron jobs
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+STATE_DIR=/data/alpaca-bot
+
+# Market hours ticks: every 15 minutes from 9:30 AM to 4:00 PM ET, Mon-Fri
+# Note: Cron doesn't support :30, so we handle 9:30 separately
+# Using gosu to run as botuser (required for --dangerously-skip-permissions)
+
+# 9:30 AM tick (market open)
+30 9 * * 1-5 gosu botuser /usr/local/bin/tick.py >> /data/alpaca-bot/logs/cron.log 2>&1
+
+# 9:45 AM - 3:45 PM: every 15 minutes
+*/15 10-15 * * 1-5 gosu botuser /usr/local/bin/tick.py >> /data/alpaca-bot/logs/cron.log 2>&1
+
+# 3:55 PM tick (just before market close)
+55 15 * * 1-5 gosu botuser /usr/local/bin/tick.py >> /data/alpaca-bot/logs/cron.log 2>&1
+
+# 4:00 PM tick (market close)
+0 16 * * 1-5 gosu botuser /usr/local/bin/tick.py >> /data/alpaca-bot/logs/cron.log 2>&1
+
+# Off-hours analysis: every 2 hours (analysis-only mode)
+# Runs at midnight, 2am, 4am, 6am, 8am (before market), and 6pm, 8pm, 10pm (after market)
+0 0,2,4,6,8,18,20,22 * * 1-5 gosu botuser /usr/local/bin/tick.py --analysis-only >> /data/alpaca-bot/logs/cron.log 2>&1
+
+# Weekend analysis: twice daily on Saturday and Sunday
+0 10,18 * * 0,6 gosu botuser /usr/local/bin/tick.py --analysis-only >> /data/alpaca-bot/logs/cron.log 2>&1
+
+# Cron requires an empty line at the end
