@@ -50,13 +50,49 @@ When evaluating news, assign a score from -3 to +3:
 - **-2**: Strong negative (earnings miss, downgrade, investigation)
 - **-3**: Catastrophic (fraud, bankruptcy, product failure)
 
+## Twitter/Social Monitoring (WebSearch Primary)
+
+### Data Sources
+1. **PRIMARY - WebSearch** (no rate limits):
+   - Search "Trump tweet today site:twitter.com"
+   - Search "Elon Musk tweet today site:twitter.com"
+   - Good for catching major tweets that made news
+2. **EMERGENCY ONLY - Twitter MCP** (`search_tweets`):
+   - ⚠️ Free tier = ~100 reads/month total
+   - Only use to verify breaking news found via WebSearch
+   - Will upgrade to Basic tier ($100/mo) for 10K reads/month
+
+### Key Accounts to Monitor
+
+| Person | WebSearch Query | Impact |
+|--------|-----------------|--------|
+| Donald Trump | "Trump tweet today" | TIER 1 - tariffs, policy |
+| Elon Musk | "Elon Musk tweet today" | TIER 1 - TSLA, crypto |
+| White House | "White House announcement" | TIER 1/2 - official policy |
+| Fed | "Federal Reserve statement" | TIER 1 - rates |
+
+### Twitter Catalyst Rules
+- **Tweet < 30 min old**: Immediate TIER 1, assess sector impact
+- **Tweet 30min-2hr old**: TIER 2, check if priced in
+- **Tweet > 2hr old**: Likely priced in, monitor for follow-up
+
+### What to Look For
+- **Tariff mentions**: Long domestic, short importers
+- **Crypto mentions**: COIN, MARA, MSTR, BTC proxies
+- **Company callouts**: Direct mentions = immediate volatility
+- **Policy hints**: Deregulation, spending, trade deals
+- **Musk shitposts**: Even jokes can move TSLA/DOGE
+
 ## Political & Macro Awareness
 
-### Key Figures to Monitor (via news)
-- Trump administration policy announcements
-- Musk tweets/statements affecting Tesla, SpaceX suppliers, crypto
-- Fed officials (Powell, governors) on rate policy
-- SEC chair on crypto/regulatory actions
+### Key Figures to Monitor
+| Handle | Name | Affects |
+|--------|------|---------|
+| @realDonaldTrump | Donald Trump | Everything, tariffs, policy |
+| @elonmusk | Elon Musk | TSLA, crypto, DOGE, AI |
+| @WhiteHouse | White House | Official policy |
+| @federalreserve | Federal Reserve | Rates, QE/QT |
+| @SECGov | SEC | Crypto regulation, enforcement |
 
 ### Sector Sensitivity Matrix
 | Event Type | Long Candidates | Short Candidates |

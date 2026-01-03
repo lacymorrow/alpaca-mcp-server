@@ -732,7 +732,8 @@ A fully autonomous trading bot that uses Claude Code CLI to make trading decisio
 ### Features
 
 - **Autonomous Operation**: Runs on cron schedule without human intervention
-- **News-Driven Trading**: Polygon.io integration for real-time news, analyst ratings, earnings data
+- **News-Driven Trading**: Polygon.io integration for real-time news, analyst ratings, earnings
+- **Twitter Monitoring**: WebSearch for Trump/Musk tweets + Twitter API for verification
 - **Tiered Catalyst System**: Tier 1 (act immediately), Tier 2 (within session), Tier 3 (monitor)
 - **Self-Evolving Strategy**: Bot modifies its own `strategy.md` and `plan.md` files
 - **Slack Notifications**: Portfolio summary after each tick + error alerts
@@ -753,10 +754,10 @@ A fully autonomous trading bot that uses Claude Code CLI to make trading decisio
 │                     ▼                                       │
 │  ┌─────────────────────────────────────────────────────┐   │
 │  │              MCP Servers (stdio)                     │   │
-│  │  ┌─────────────────┐    ┌──────────────────────┐    │   │
-│  │  │     Alpaca      │    │     Polygon.io       │    │   │
-│  │  │   (trading)     │    │   (news & data)      │    │   │
-│  │  └─────────────────┘    └──────────────────────┘    │   │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │   │
+│  │  │  Alpaca  │  │ Polygon  │  │     Twitter      │   │   │
+│  │  │ (trading)│  │  (news)  │  │ (social monitor) │   │   │
+│  │  └──────────┘  └──────────┘  └──────────────────┘   │   │
 │  └─────────────────────────────────────────────────────┘   │
 │                                                             │
 │  ┌─────────────────────────────────────────────────────┐   │
@@ -780,6 +781,10 @@ A fully autonomous trading bot that uses Claude Code CLI to make trading decisio
    ALPACA_PAPER_TRADE=True
    ANTHROPIC_API_KEY=your_anthropic_key
    POLYGON_API_KEY=your_polygon_key
+   TWITTER_API_KEY=your_twitter_key
+   TWITTER_API_SECRET=your_twitter_secret
+   TWITTER_ACCESS_TOKEN=your_twitter_token
+   TWITTER_ACCESS_TOKEN_SECRET=your_twitter_token_secret
    SLACK_WEBHOOK_URL=your_slack_webhook
    ```
 
@@ -858,11 +863,11 @@ The bot uses an aggressive news-driven approach with a tiered catalyst system:
 - 1-4 hours: Check if priced in
 - > 4 hours: Likely stale
 
-**Each Tick Workflow:**
-1. Check positions for news (Polygon `list_ticker_news`)
-2. Scan sector ETFs (SPY, QQQ, XLF, XLE, XLK)
-3. Check watchlist (mega caps, crypto proxies, political plays)
-4. Score news (-3 to +3 sentiment)
+**Each Tick Workflow (5 Phases):**
+1. Market & account status check
+2. News gathering (Polygon `list_ticker_news`)
+3. Twitter monitoring (WebSearch primary, API for verification)
+4. Score news/tweets (-3 to +3 sentiment)
 5. Execute trades based on decision framework
 
 See `templates/strategy.md` for full strategy details.
@@ -870,7 +875,7 @@ See `templates/strategy.md` for full strategy details.
 ### Technical Details
 
 - **Non-root execution**: Bot runs as `botuser` (required for `--dangerously-skip-permissions`)
-- **MCP servers**: Alpaca (trading) + Polygon.io (news/data)
+- **MCP servers**: Alpaca (trading) + Polygon.io (news) + Twitter (social)
 - **Timeout**: 5-minute timeout on Claude Code execution
 - **Model**: Uses Claude Opus, falls back to Sonnet when quota exhausted
 

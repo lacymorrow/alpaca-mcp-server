@@ -17,14 +17,16 @@ This is a Model Context Protocol (MCP) server for Alpaca's Trading API, plus an 
 - Updated `docker-compose.yml` with trading-bot and mcp-server services
 - Tested: Docker build and tick execution verified working
 
-**Phase 2: News Integration - COMPLETE**
+**Phase 2: News & Social Integration - COMPLETE**
 - Polygon.io MCP server integrated for news, analyst ratings, earnings
+- Twitter MCP server integrated for real-time social monitoring
 - Strategy tuned for news-driven decisions:
   - Tiered catalyst system (Tier 1/2/3 urgency levels)
   - News freshness rules (<1hr full strength, 1-4hr reduced, >4hr stale)
+  - Twitter freshness rules (<30min TIER 1, 30min-2hr TIER 2)
   - Sentiment scoring (-3 to +3)
-  - 4-phase tick workflow with explicit Polygon tool usage
-  - Enhanced plan.md template with news radar section
+  - 5-phase tick workflow: Market → News → Twitter → Analysis → Execution
+  - Key accounts: @realDonaldTrump, @elonmusk, @WhiteHouse, @federalreserve
 
 **Currently Running:** Live trading (ALPACA_PAPER_TRADE=False)
 
@@ -80,7 +82,11 @@ Copy `.env.example` to `.env` and configure:
 | `ALPACA_SECRET_KEY` | Yes | Alpaca secret key |
 | `ALPACA_PAPER_TRADE` | No | `True` (default) or `False` for live trading |
 | `ANTHROPIC_API_KEY` | Yes | For Claude Code CLI (required for trading bot) |
-| `POLYGON_API_KEY` | No | For Polygon.io news MCP server (optional) |
+| `POLYGON_API_KEY` | No | For Polygon.io news MCP server |
+| `TWITTER_API_KEY` | No | Twitter API key for social monitoring |
+| `TWITTER_API_SECRET` | No | Twitter API secret |
+| `TWITTER_ACCESS_TOKEN` | No | Twitter access token |
+| `TWITTER_ACCESS_TOKEN_SECRET` | No | Twitter access token secret |
 | `SLACK_WEBHOOK_URL` | No | For error alerts (optional but recommended) |
 | `DEBUG` | No | Set to `True` for debug logging |
 
@@ -231,7 +237,7 @@ alpaca-mcp-server/
 - [x] Test Docker build and tick execution (verified 2026-01-03)
 - [x] Bot runs as non-root `botuser` (required for `--dangerously-skip-permissions`)
 
-### Phase 2: News Integration - ✅ COMPLETE
+### Phase 2: News & Social Integration - ✅ COMPLETE
 - [x] Add Polygon.io MCP server to mcp-config.json (official server from polygon-io/mcp_polygon)
 - [x] Install `uvx` globally for running Polygon MCP server
 - [x] Bot now has access to stock news, analyst ratings, earnings dates, market context
@@ -239,8 +245,11 @@ alpaca-mcp-server/
   - Tiered catalyst system (Tier 1/2/3 urgency)
   - News freshness rules (<1hr, 1-4hr, >4hr)
   - Sentiment scoring (-3 to +3)
-  - 4-phase tick workflow with explicit Polygon tool usage
-  - Enhanced plan.md template with news radar
+- [x] Add Twitter monitoring for social signals (2026-01-03)
+  - WebSearch primary (no rate limits): "Trump tweet today", "Elon Musk tweet"
+  - Twitter MCP available for emergency verification (free tier = ~100/month)
+  - Key accounts: @realDonaldTrump, @elonmusk, @WhiteHouse, @federalreserve
+  - 5-phase tick workflow: Market → News → Twitter → Analysis → Execution
 
 ### Phase 3: Expand Asset Types - NEXT
 - [ ] Enable crypto trading (24/7 capability)

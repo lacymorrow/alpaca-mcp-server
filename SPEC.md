@@ -17,6 +17,7 @@
 | Docker build test | ✅ Passed | Verified 2026-01-03 |
 | Tick execution test | ✅ Passed | Bot connected to Alpaca, retrieved positions, updated plan |
 | Polygon.io integration | ✅ Done | News, analyst ratings, earnings dates available |
+| Twitter integration | ✅ Done | Real-time social monitoring (@realDonaldTrump, @elonmusk, etc.) |
 | Slack notifications | ✅ Done | Summary after each tick + error alerts |
 
 **Next Steps:**
@@ -125,6 +126,16 @@ claude --print \
       "env": {
         "POLYGON_API_KEY": "${POLYGON_API_KEY}"
       }
+    },
+    "twitter": {
+      "command": "npx",
+      "args": ["-y", "@enescinar/twitter-mcp"],
+      "env": {
+        "API_KEY": "${TWITTER_API_KEY}",
+        "API_SECRET_KEY": "${TWITTER_API_SECRET}",
+        "ACCESS_TOKEN": "${TWITTER_ACCESS_TOKEN}",
+        "ACCESS_TOKEN_SECRET": "${TWITTER_ACCESS_TOKEN_SECRET}"
+      }
     }
   }
 }
@@ -133,6 +144,7 @@ claude --print \
 **Tool Access:**
 - Alpaca: Full access to all 31 trading tools
 - Polygon.io: 35+ tools for stocks, options, forex, crypto data, news, earnings, analyst ratings
+- Twitter: `search_tweets`, `post_tweet` for social monitoring
 
 ### 4. Cron Schedule
 
@@ -184,12 +196,13 @@ The bot has **full autonomy** with an aggressive news-driven approach. No traini
 - **-2**: Strong negative (earnings miss, downgrade, investigation)
 - **-3**: Catastrophic (fraud, bankruptcy, product failure)
 
-### Tick Workflow (4 Phases)
+### Tick Workflow (5 Phases)
 
 1. **Market & Account Status**: `get_market_clock`, `get_account_info`, `get_positions`
-2. **News Gathering**: `list_ticker_news` for positions, watchlist, sector ETFs
-3. **Analysis & Decision**: Score news, identify catalyst tier, apply framework
-4. **Execution**: Trade with conviction, update plan.md, evolve strategy.md
+2. **News Gathering (Polygon)**: `list_ticker_news` for positions, watchlist, sector ETFs
+3. **Twitter Monitoring**: `search_tweets` for @realDonaldTrump, @elonmusk, key tickers
+4. **Analysis & Decision**: Score news/tweets, identify catalyst tier, apply framework
+5. **Execution**: Trade with conviction, update plan.md, evolve strategy.md
 
 ### Watchlist
 
@@ -275,7 +288,7 @@ Each tick logs to `actions.ndjson`:
 
 ### Built-in (Claude Code)
 - Web search via Claude's native capability
-- Used for breaking news, tweet lookups, general research
+- Used for breaking news, general research
 
 ### Polygon.io MCP Server
 - Ticker-specific news
@@ -283,10 +296,11 @@ Each tick logs to `actions.ndjson`:
 - Earnings announcements
 - Requires `POLYGON_API_KEY` env var
 
-### Twitter/X via Nitter (Future)
-- Monitor @elonmusk, @realDonaldTrump, financial accounts
-- No API key required (scraping)
-- Add as separate MCP server when available
+### Twitter Monitoring
+- **Primary**: WebSearch for "Trump tweet today", "Elon Musk tweet"
+- **Backup**: Twitter MCP `search_tweets` (free tier = ~100/month, emergency only)
+- Key accounts: @realDonaldTrump, @elonmusk, @WhiteHouse, @federalreserve
+- Requires Twitter API credentials (4 env vars) for MCP fallback
 
 ## Environment Variables
 
@@ -297,6 +311,10 @@ Each tick logs to `actions.ndjson`:
 | `ALPACA_PAPER_TRADE` | No | `True` (default) or `False` for live |
 | `ANTHROPIC_API_KEY` | Yes | For Claude Code CLI |
 | `POLYGON_API_KEY` | No | For Polygon news MCP server |
+| `TWITTER_API_KEY` | No | Twitter API key |
+| `TWITTER_API_SECRET` | No | Twitter API secret |
+| `TWITTER_ACCESS_TOKEN` | No | Twitter access token |
+| `TWITTER_ACCESS_TOKEN_SECRET` | No | Twitter access token secret |
 | `SLACK_WEBHOOK_URL` | No | For error alerts |
 | `TZ` | No | Defaults to `America/New_York` |
 
@@ -444,7 +462,7 @@ alpaca-mcp-server/
 6. ✅ Add non-root `botuser` for `--dangerously-skip-permissions`
 7. ✅ Test Docker build and tick execution
 
-### Phase 2: News Integration ✅ COMPLETE
+### Phase 2: News & Social Integration ✅ COMPLETE
 1. ✅ Add Polygon.io MCP server (official: polygon-io/mcp_polygon)
 2. ✅ Install `uvx` globally for running Polygon MCP
 3. ✅ Bot has access to news, analyst ratings, earnings dates
@@ -452,8 +470,11 @@ alpaca-mcp-server/
    - Tiered catalyst system (Tier 1/2/3)
    - News freshness rules (<1hr, 1-4hr, >4hr)
    - Sentiment scoring (-3 to +3)
-   - 4-phase tick workflow with explicit Polygon tool usage
-   - Enhanced plan.md template with news radar
+5. ✅ Add Twitter monitoring for social signals (2026-01-03)
+   - WebSearch primary (no rate limits)
+   - Twitter MCP for emergency verification (free tier = ~100/month)
+   - Key accounts: @realDonaldTrump, @elonmusk, @WhiteHouse, @federalreserve
+   - 5-phase tick workflow: Market → News → Twitter → Analysis → Execution
 
 ### Phase 3: Expand Asset Types (PLANNED)
 1. Enable crypto trading (24/7 capability)
