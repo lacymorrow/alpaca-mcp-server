@@ -8,16 +8,25 @@ This is a Model Context Protocol (MCP) server for Alpaca's Trading API, plus an 
 
 ## Current Project State (as of 2026-01-03)
 
-**Phase 1 Implementation: COMPLETE & TESTED** - The core trading bot infrastructure has been built and verified:
+**Phase 1: Core Trading Bot - COMPLETE & TESTED**
 - `scripts/tick.py` - Python tick script that invokes Claude Code CLI
 - `mcp-config.json` - MCP server configuration for Claude Code
 - `crontab` - Cron schedule for tick execution (uses `gosu botuser` for non-root execution)
-- `templates/strategy.md` and `templates/plan.md` - Initial templates
+- `templates/strategy.md` and `templates/plan.md` - Templates with news-driven strategy
 - Updated `Dockerfile` with Claude Code CLI, cron, and non-root `botuser`
 - Updated `docker-compose.yml` with trading-bot and mcp-server services
-- Updated `.env.example` with all required variables
+- Tested: Docker build and tick execution verified working
 
-**Tested on 2026-01-03:** Docker build and tick execution verified working. Bot successfully connected to Alpaca, retrieved positions, and updated plan.md with market analysis.
+**Phase 2: News Integration - COMPLETE**
+- Polygon.io MCP server integrated for news, analyst ratings, earnings
+- Strategy tuned for news-driven decisions:
+  - Tiered catalyst system (Tier 1/2/3 urgency levels)
+  - News freshness rules (<1hr full strength, 1-4hr reduced, >4hr stale)
+  - Sentiment scoring (-3 to +3)
+  - 4-phase tick workflow with explicit Polygon tool usage
+  - Enhanced plan.md template with news radar section
+
+**Currently Running:** Live trading (ALPACA_PAPER_TRADE=False)
 
 ## Development Commands
 
@@ -213,7 +222,7 @@ alpaca-mcp-server/
 
 ## Implementation Phases
 
-### Phase 1: Core Trading Bot - COMPLETE & TESTED
+### Phase 1: Core Trading Bot - ✅ COMPLETE
 - [x] Write `scripts/tick.py` in Python
 - [x] Update Dockerfile with Claude Code CLI and cron
 - [x] Create `mcp-config.json` with Alpaca server
@@ -221,15 +230,19 @@ alpaca-mcp-server/
 - [x] Set up Slack webhook alerting
 - [x] Test Docker build and tick execution (verified 2026-01-03)
 - [x] Bot runs as non-root `botuser` (required for `--dangerously-skip-permissions`)
-- [ ] **NEXT: Validate with paper trading over 1 week** (currently running on live account)
 
-### Phase 2: News Integration - COMPLETE
+### Phase 2: News Integration - ✅ COMPLETE
 - [x] Add Polygon.io MCP server to mcp-config.json (official server from polygon-io/mcp_polygon)
 - [x] Install `uvx` globally for running Polygon MCP server
 - [x] Bot now has access to stock news, analyst ratings, earnings dates, market context
-- [ ] Tune strategy for news-driven decisions (ongoing)
+- [x] Tune strategy for news-driven decisions (2026-01-03)
+  - Tiered catalyst system (Tier 1/2/3 urgency)
+  - News freshness rules (<1hr, 1-4hr, >4hr)
+  - Sentiment scoring (-3 to +3)
+  - 4-phase tick workflow with explicit Polygon tool usage
+  - Enhanced plan.md template with news radar
 
-### Phase 3: Expand Asset Types
+### Phase 3: Expand Asset Types - NEXT
 - [ ] Enable crypto trading (24/7 capability)
 - [ ] Add options trading with appropriate strategy updates
 
@@ -238,22 +251,20 @@ alpaca-mcp-server/
 - [ ] Implement summarization layer for historical context
 - [ ] Add semantic search for past decisions
 
-## Testing Checklist
+## Operational Checklist
 
-### Paper Trading Validation
-1. Deploy with `ALPACA_PAPER_TRADE=True`
-2. Run for 1 week minimum
-3. Review all decisions in `actions.ndjson`
-4. Verify strategy evolution in `strategy.md`
-5. Check error handling and Slack alerts
-
-### Go-Live Checklist
-- [ ] Paper trading validated
-- [ ] `ALPACA_PAPER_TRADE=False` set
-- [ ] Live API keys configured
-- [ ] Slack alerts verified
+### Live Trading (Current State)
+- [x] `ALPACA_PAPER_TRADE=False` set
+- [x] Live API keys configured
+- [x] Slack alerts configured (tick summaries + errors)
 - [ ] Coolify health checks configured
 - [ ] Data volume backup configured
+
+### Monitoring
+1. Review decisions in `/data/alpaca-bot/logs/actions.ndjson`
+2. Check strategy evolution in `/data/alpaca-bot/strategy.md`
+3. Monitor Slack for tick summaries and error alerts
+4. Review plan.md for bot's current thesis and observations
 
 ## Important Notes for Continuing Work
 

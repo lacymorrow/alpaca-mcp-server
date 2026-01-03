@@ -20,9 +20,9 @@
 | Slack notifications | ✅ Done | Summary after each tick + error alerts |
 
 **Next Steps:**
-1. Validate with paper trading over 1 week
-2. Phase 3: Enable crypto trading (24/7 capability)
-3. Phase 4: Add options trading
+1. Phase 3: Enable crypto trading (24/7 capability)
+2. Phase 4: Add options trading
+3. Phase 5: Long-term memory (mem0 or SQLite)
 
 ---
 
@@ -152,37 +152,53 @@ claude --print \
 
 ### Philosophy
 
-The bot has **full autonomy** to develop and evolve its own trading strategy. Initial guidance:
+The bot has **full autonomy** with an aggressive news-driven approach. No training wheels.
 
-- **News/Event-Driven:** React to market-moving news, political events, tweets
-- **Political Volatility Awareness:** Current environment has Trump/Musk causing significant market swings
+- **News/Event-Driven:** React to market-moving news with tiered urgency
+- **Political Volatility Awareness:** Trump/Musk causing significant market swings
 - **No Fixed Limits:** Bot manages its own risk with available capital
 - **No Circuit Breakers:** Trust Claude's judgment in all market conditions
 
-### strategy.md (Initial Template)
+### News Catalyst Tiers
 
-```markdown
-# Trading Strategy
+| Tier | Action | Examples |
+|------|--------|----------|
+| **Tier 1** | Act immediately, size up to 25% | Earnings surprises >10%, FDA approvals, M&A, executive orders |
+| **Tier 2** | Act within session, 10-15% | Analyst upgrades, insider buying >$1M, guidance changes |
+| **Tier 3** | Monitor & position, 5% max | Industry trends, macro data, political rhetoric |
 
-## Approach
-- Event-driven trading focused on news catalysts
-- Monitor political developments (executive orders, policy changes, key tweets)
-- Look for asymmetric risk/reward setups
+### News Freshness Rules
 
-## Position Management
-- No fixed position count limit
-- Size positions based on conviction and volatility
-- Manage overall portfolio heat, not individual position limits
+- **< 1 hour old**: Full signal strength, act aggressively
+- **1-4 hours old**: Reduced signal, check if already priced in
+- **> 4 hours old**: Likely priced in, only act if market hasn't reacted
+- **> 24 hours old**: Ignore unless follow-up developments
 
-## Decision Framework
-1. What is the catalyst? (news, earnings, policy, sentiment shift)
-2. What is the expected move? (direction, magnitude, timeframe)
-3. What invalidates the thesis?
-4. Risk/reward ratio
+### Sentiment Scoring (-3 to +3)
 
-## Evolution
-This strategy will evolve based on what works. Document learnings here.
-```
+- **+3**: Transformational positive (acquisition at premium, FDA approval)
+- **+2**: Strong positive (earnings beat, upgrade)
+- **+1**: Mild positive (minor contract, positive mention)
+- **0**: Neutral/noise
+- **-1**: Mild negative (minor miss, cautious analyst)
+- **-2**: Strong negative (earnings miss, downgrade, investigation)
+- **-3**: Catastrophic (fraud, bankruptcy, product failure)
+
+### Tick Workflow (4 Phases)
+
+1. **Market & Account Status**: `get_market_clock`, `get_account_info`, `get_positions`
+2. **News Gathering**: `list_ticker_news` for positions, watchlist, sector ETFs
+3. **Analysis & Decision**: Score news, identify catalyst tier, apply framework
+4. **Execution**: Trade with conviction, update plan.md, evolve strategy.md
+
+### Watchlist
+
+- **Mega caps**: AAPL, MSFT, GOOGL, AMZN, NVDA, META, TSLA
+- **Crypto proxies**: COIN, MARA, MSTR, RIOT
+- **Political plays**: Defense (LMT, RTX), Energy (XOM, CVX), Banks (JPM, GS)
+- **Sector ETFs**: SPY, QQQ, XLF, XLE, XLK
+
+See `templates/strategy.md` for full strategy with position sizing, risk controls, and sector sensitivity matrix.
 
 ### Asset Types
 
@@ -432,7 +448,12 @@ alpaca-mcp-server/
 1. ✅ Add Polygon.io MCP server (official: polygon-io/mcp_polygon)
 2. ✅ Install `uvx` globally for running Polygon MCP
 3. ✅ Bot has access to news, analyst ratings, earnings dates
-4. 🔄 Tune strategy for news-driven decisions (ongoing)
+4. ✅ Tuned strategy for news-driven decisions (2026-01-03)
+   - Tiered catalyst system (Tier 1/2/3)
+   - News freshness rules (<1hr, 1-4hr, >4hr)
+   - Sentiment scoring (-3 to +3)
+   - 4-phase tick workflow with explicit Polygon tool usage
+   - Enhanced plan.md template with news radar
 
 ### Phase 3: Expand Asset Types (PLANNED)
 1. Enable crypto trading (24/7 capability)

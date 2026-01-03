@@ -732,9 +732,10 @@ A fully autonomous trading bot that uses Claude Code CLI to make trading decisio
 ### Features
 
 - **Autonomous Operation**: Runs on cron schedule without human intervention
-- **MCP Integration**: Uses Alpaca MCP server for trading + Polygon.io for news data
-- **Self-Evolving Strategy**: Bot can modify its own `strategy.md` and `plan.md` files
-- **Slack Notifications**: Sends summary after each tick + error alerts
+- **News-Driven Trading**: Polygon.io integration for real-time news, analyst ratings, earnings data
+- **Tiered Catalyst System**: Tier 1 (act immediately), Tier 2 (within session), Tier 3 (monitor)
+- **Self-Evolving Strategy**: Bot modifies its own `strategy.md` and `plan.md` files
+- **Slack Notifications**: Portfolio summary after each tick + error alerts
 - **Full Trading Capability**: Stocks (Phase 1), with crypto and options planned
 
 ### Architecture
@@ -840,6 +841,31 @@ The bot sends two types of Slack notifications:
 - `mcp-config.json` - MCP server configuration
 - `crontab` - Cron schedule
 - `templates/` - Initial strategy and plan templates
+
+### Trading Strategy
+
+The bot uses an aggressive news-driven approach with a tiered catalyst system:
+
+**News Catalyst Tiers:**
+| Tier | Action | Examples |
+|------|--------|----------|
+| **Tier 1** | Act immediately, size up | Earnings surprises >10%, FDA approvals, M&A, executive orders |
+| **Tier 2** | Act within session | Analyst upgrades, insider buying >$1M, guidance changes |
+| **Tier 3** | Monitor & position | Industry trends, macro data, political rhetoric |
+
+**News Freshness Rules:**
+- < 1 hour: Full signal strength
+- 1-4 hours: Check if priced in
+- > 4 hours: Likely stale
+
+**Each Tick Workflow:**
+1. Check positions for news (Polygon `list_ticker_news`)
+2. Scan sector ETFs (SPY, QQQ, XLF, XLE, XLK)
+3. Check watchlist (mega caps, crypto proxies, political plays)
+4. Score news (-3 to +3 sentiment)
+5. Execute trades based on decision framework
+
+See `templates/strategy.md` for full strategy details.
 
 ### Technical Details
 
