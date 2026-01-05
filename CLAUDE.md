@@ -89,6 +89,9 @@ Copy `.env.example` to `.env` and configure:
 | `TWITTER_ACCESS_TOKEN_SECRET` | No | Twitter access token secret |
 | `SLACK_WEBHOOK_URL` | No | For error alerts (optional but recommended) |
 | `DEBUG` | No | Set to `True` for debug logging |
+| `ENABLE_STOCK_TRADING` | No | Enable stock trading (default: `true`) |
+| `ENABLE_CRYPTO_TRADING` | No | Enable crypto trading (default: `false`) |
+| `ENABLE_OPTIONS_TRADING` | No | Enable options trading (default: `false`) |
 
 ## Architecture
 
@@ -199,9 +202,15 @@ The bot sends two types of Slack notifications:
 - Last action taken
 
 ### Asset Types
-- **Phase 1 (Current)**: Stocks only
-- **Phase 2 (Future)**: Add crypto for 24/7 exposure
-- **Phase 3 (Future)**: Add options for hedging and leverage
+Asset types are controlled via environment variables with prompt-level enforcement:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ENABLE_STOCK_TRADING` | `true` | Standard equity trading |
+| `ENABLE_CRYPTO_TRADING` | `false` | 24/7 cryptocurrency trading |
+| `ENABLE_OPTIONS_TRADING` | `false` | Options for hedging/leverage |
+
+All MCP tools remain available; Claude is instructed via prompt which types are permitted. Configuration is handled by the `AssetTypeConfig` dataclass in `scripts/tick.py`.
 
 ## File Structure
 
@@ -251,9 +260,12 @@ alpaca-mcp-server/
   - Key accounts: @realDonaldTrump, @elonmusk, @WhiteHouse, @federalreserve
   - 5-phase tick workflow: Market → News → Twitter → Analysis → Execution
 
-### Phase 3: Expand Asset Types - NEXT
-- [ ] Enable crypto trading (24/7 capability)
-- [ ] Add options trading with appropriate strategy updates
+### Phase 3: Expand Asset Types - ✅ COMPLETE
+- [x] Add `ENABLE_STOCK_TRADING`, `ENABLE_CRYPTO_TRADING`, `ENABLE_OPTIONS_TRADING` env vars
+- [x] Implement `AssetTypeConfig` dataclass in `tick.py` for robust configuration
+- [x] Prompt-level enforcement (tools available, Claude instructed on permitted types)
+- [x] Add crypto/options placeholder sections to `templates/strategy.md`
+- [x] Add position tables for all asset types in `templates/plan.md`
 
 ### Phase 4: Long-term Memory (Future)
 - [ ] Evaluate mem0 or SQLite-based memory MCP

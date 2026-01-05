@@ -10,11 +10,102 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum, auto
 from pathlib import Path
 from typing import Optional
 import urllib.request
 import urllib.error
+
+
+class AssetType(Enum):
+    """Tradeable asset types."""
+    STOCKS = auto()
+    CRYPTO = auto()
+    OPTIONS = auto()
+
+
+@dataclass(frozen=True)
+class AssetTypeConfig:
+    """Configuration for which asset types are enabled for trading."""
+    stocks: bool
+    crypto: bool
+    options: bool
+
+    @classmethod
+    def from_env(cls) -> "AssetTypeConfig":
+        """
+        Load asset type configuration from environment variables.
+
+        Uses explicit false detection - any value that's not explicitly
+        'false' or '0' is considered enabled. This means unset variables
+        use the defaults specified in docker-compose.yml.
+        """
+        def is_enabled(var_name: str, default: bool) -> bool:
+            value = os.getenv(var_name)
+            if value is None:
+                return default
+            # Only treat explicit false values as disabled
+            return value.lower() not in ('false', '0', 'no', 'off')
+
+        return cls(
+            stocks=is_enabled('ENABLE_STOCK_TRADING', True),
+            crypto=is_enabled('ENABLE_CRYPTO_TRADING', False),
+            options=is_enabled('ENABLE_OPTIONS_TRADING', False),
+        )
+
+    @property
+    def enabled_types(self) -> list[AssetType]:
+        """Return list of enabled asset types."""
+        enabled = []
+        if self.stocks:
+            enabled.append(AssetType.STOCKS)
+        if self.crypto:
+            enabled.append(AssetType.CRYPTO)
+        if self.options:
+            enabled.append(AssetType.OPTIONS)
+        return enabled
+
+    @property
+    def enabled_names(self) -> list[str]:
+        """Return list of enabled asset type names."""
+        return [t.name.lower() for t in self.enabled_types]
+
+    @property
+    def disabled_names(self) -> list[str]:
+        """Return list of disabled asset type names."""
+        all_types = {AssetType.STOCKS, AssetType.CRYPTO, AssetType.OPTIONS}
+        disabled = all_types - set(self.enabled_types)
+        return [t.name.lower() for t in disabled]
+
+    def build_prompt_section(self) -> str:
+        """Generate the asset type instruction section for the prompt."""
+        lines = [
+            "ASSET TYPE CONFIGURATION:",
+            f"- ENABLED: {', '.join(self.enabled_names) if self.enabled_names else 'None'}",
+            f"- DISABLED: {', '.join(self.disabled_names) if self.disabled_names else 'None'}",
+            "",
+            "CRITICAL: You may ONLY trade the enabled asset types listed above.",
+            ""
+        ]
+
+        if self.stocks:
+            lines.append("- STOCKS: You may use place_stock_order and stock data tools.")
+        else:
+            lines.append("- STOCKS: DO NOT use place_stock_order or any stock trading tools.")
+
+        if self.crypto:
+            lines.append("- CRYPTO: You may use place_crypto_order. Crypto trades 24/7.")
+        else:
+            lines.append("- CRYPTO: DO NOT use place_crypto_order or any crypto trading tools.")
+
+        if self.options:
+            lines.append("- OPTIONS: You may use place_option_market_order and options tools.")
+        else:
+            lines.append("- OPTIONS: DO NOT use place_option_market_order or any options tools.")
+
+        return "\n".join(lines)
 
 # Configuration
 STATE_DIR = Path(os.getenv("STATE_DIR", "/data/alpaca-bot"))
@@ -126,10 +217,20 @@ def get_recent_actions(state: dict, count: int = 10) -> list:
     return history[-count:] if history else []
 
 
-def build_prompt(state: dict, plan: str, strategy: str, analysis_only: bool = False) -> str:
+def build_prompt(
+    state: dict,
+    plan: str,
+    strategy: str,
+    analysis_only: bool = False,
+    asset_config: AssetTypeConfig | None = None
+) -> str:
     """Assemble the prompt for Claude Code."""
     now = datetime.now().isoformat()
     recent_actions = get_recent_actions(state, 10)
+
+    # Load asset config if not provided
+    if asset_config is None:
+        asset_config = AssetTypeConfig.from_env()
 
     mode_instruction = ""
     if analysis_only:
@@ -140,6 +241,29 @@ NOTE: This is an ANALYSIS-ONLY tick (market is likely closed).
 - Update plan.md with observations
 - Prepare for next trading session
 """
+
+    # Build asset type instruction section
+    asset_instruction = asset_config.build_prompt_section()
+
+    # Build execution instructions based on enabled asset types
+    execution_lines = []
+    step_num = 13
+    if asset_config.stocks:
+        execution_lines.append(f"{step_num}. STOCKS: Execute trades using place_stock_order when you have conviction")
+        step_num += 1
+    if asset_config.crypto:
+        execution_lines.append(f"{step_num}. CRYPTO: Execute trades using place_crypto_order - crypto trades 24/7")
+        step_num += 1
+    if asset_config.options:
+        execution_lines.append(f"{step_num}. OPTIONS: Execute trades using place_option_market_order with proper sizing")
+        step_num += 1
+    execution_lines.append(f"{step_num}. Use market orders for Tier 1 urgency, limit orders otherwise")
+    step_num += 1
+    execution_lines.append(f"{step_num}. Update plan.md with your observations and next actions")
+    step_num += 1
+    execution_lines.append(f"{step_num}. If your approach evolves, update strategy.md (append to Evolution Log)")
+
+    execution_instructions = "\n".join(execution_lines)
 
     prompt = f"""CURRENT STATE:
 {json.dumps(state, indent=2)}
@@ -155,6 +279,8 @@ RECENT ACTIONS (last 10):
 
 CURRENT TIME: {now} ({TZ})
 {mode_instruction}
+
+{asset_instruction}
 
 INSTRUCTIONS:
 You are an autonomous trading bot with full control of this Alpaca account.
@@ -186,10 +312,7 @@ You are an autonomous trading bot with full control of this Alpaca account.
 12. Apply the decision framework: Catalyst, Magnitude, Timeframe, Invalidation, R/R
 
 **PHASE 5: Execution**
-13. Execute trades using place_stock_order when you have conviction
-14. Use market orders for Tier 1 urgency, limit orders otherwise
-15. Update plan.md with your observations and next actions
-16. If your approach evolves, update strategy.md (append to Evolution Log)
+{execution_instructions}
 
 If market is closed, perform analysis only - do not place orders. Still gather news and update plan.
 
@@ -491,6 +614,10 @@ def main():
     tick_time = datetime.now().isoformat()
     print(f"[{tick_time}] Starting tick...")
 
+    # Load asset type configuration
+    asset_config = AssetTypeConfig.from_env()
+    print(f"  Asset types enabled: {', '.join(asset_config.enabled_names) or 'none'}")
+
     try:
         # Initialize directories and files
         ensure_directories()
@@ -499,7 +626,7 @@ def main():
         strategy = init_strategy_md()
 
         # Build prompt
-        prompt = build_prompt(state, plan, strategy, analysis_only=args.analysis_only)
+        prompt = build_prompt(state, plan, strategy, analysis_only=args.analysis_only, asset_config=asset_config)
 
         # Run Claude Code
         output, returncode = run_claude_code(prompt)

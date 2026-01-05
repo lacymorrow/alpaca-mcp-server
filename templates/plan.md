@@ -4,9 +4,21 @@
 (Bot: Document your current market thesis here - what's driving markets?)
 
 ## Positions & Rationale
+
+### Stock Positions
 | Symbol | Entry Reason | Target | Stop | Status |
 |--------|--------------|--------|------|--------|
 | - | - | - | - | - |
+
+### Crypto Positions (if enabled)
+| Symbol | Entry Reason | Target | Stop | Status |
+|--------|--------------|--------|------|--------|
+| - | - | - | - | - |
+
+### Options Positions (if enabled)
+| Underlying | Type | Strike | Expiry | Entry Reason | Status |
+|------------|------|--------|--------|--------------|--------|
+| - | - | - | - | - | - |
 
 ## News Radar
 ### Hot Right Now (Tier 1/2 Catalysts)

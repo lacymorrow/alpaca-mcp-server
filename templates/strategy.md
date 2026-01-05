@@ -171,6 +171,58 @@ Maintain awareness of these high-news-flow names:
 - No single position >30% of portfolio (except during brief Tier 1 plays)
 - Cut losses at -10% unless thesis still intact with new supporting info
 
+---
+
+## Crypto Trading
+
+> Only applicable when ENABLE_CRYPTO_TRADING=true
+
+### Advantages
+- 24/7 trading - react to news anytime, including weekends
+- High volatility = more opportunities
+- Can use BTC proxies (COIN, MARA, MSTR) during stock hours for indirect exposure
+
+### Catalysts to Watch
+- Regulatory decisions (SEC, CFTC)
+- ETF approvals/rejections
+- Exchange hacks or insolvency
+- Trump/Musk crypto mentions
+- Fed policy affecting risk assets
+
+### Position Sizing
+- More volatile than stocks - size 50% of normal conviction sizing
+- Weekend/overnight positions carry gap risk
+- Consider correlation with crypto-proxy stocks in portfolio
+
+(Bot: Expand this section as patterns emerge)
+
+---
+
+## Options Trading
+
+> Only applicable when ENABLE_OPTIONS_TRADING=true
+
+### Use Cases
+- **Hedging**: Protective puts on concentrated stock positions
+- **Income**: Covered calls on stable holdings
+- **Leverage**: Defined-risk directional bets via calls/puts
+- **Event plays**: Straddles for binary outcomes (earnings, FDA)
+
+### Key Considerations
+- Time decay (theta) erodes value daily
+- IV rank matters - high IV = expensive premiums
+- Stick to liquid underlyings (SPY, QQQ, mega-caps)
+- Know max loss before entry
+
+### Position Sizing
+- Never risk >5% of portfolio on single options trade
+- Prefer defined-risk strategies (spreads) over naked
+- Account for total loss scenario in sizing
+
+(Bot: Expand this section as patterns emerge)
+
+---
+
 ## Evolution Log
 Document what's working and what's not. Adapt the strategy based on results.
 

@@ -17,7 +17,41 @@ chown -R botuser:botuser /data/alpaca-bot
 # Export environment variables for cron
 # Cron doesn't read /etc/environment, so we inject vars directly into the crontab
 ENV_FILE=/tmp/cron_env
-printenv | grep -E '^(ALPACA_|ANTHROPIC_|POLYGON_|TWITTER_|SLACK_|TZ|STATE_DIR|DEBUG)' > "$ENV_FILE"
+
+# Explicitly list required environment variables (more robust than grep patterns)
+REQUIRED_VARS=(
+    # Alpaca credentials
+    ALPACA_API_KEY
+    ALPACA_SECRET_KEY
+    ALPACA_PAPER_TRADE
+    # Claude/Anthropic
+    ANTHROPIC_API_KEY
+    # Data providers
+    POLYGON_API_KEY
+    # Twitter
+    TWITTER_API_KEY
+    TWITTER_API_SECRET
+    TWITTER_ACCESS_TOKEN
+    TWITTER_ACCESS_TOKEN_SECRET
+    # Notifications
+    SLACK_WEBHOOK_URL
+    # Asset type configuration
+    ENABLE_STOCK_TRADING
+    ENABLE_CRYPTO_TRADING
+    ENABLE_OPTIONS_TRADING
+    # System
+    TZ
+    STATE_DIR
+    DEBUG
+)
+
+# Write each variable to env file if it's set
+> "$ENV_FILE"
+for var in "${REQUIRED_VARS[@]}"; do
+    if [ -n "${!var+x}" ]; then
+        echo "${var}=${!var}" >> "$ENV_FILE"
+    fi
+done
 
 # Build a new crontab with environment variables at the top
 {
