@@ -22,7 +22,7 @@ printenv | grep -E '^(ALPACA_|ANTHROPIC_|POLYGON_|TWITTER_|SLACK_|TZ|STATE_DIR|D
 # Build a new crontab with environment variables at the top
 {
     echo "SHELL=/bin/bash"
-    echo "PATH=/usr/local/bin:/usr/bin:/bin:/root/.local/bin"
+    echo "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin"
     echo "HOME=/home/botuser"
     # Add all required env vars
     cat "$ENV_FILE"
