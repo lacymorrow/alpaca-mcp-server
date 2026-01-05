@@ -189,6 +189,32 @@ Maintain awareness of these high-news-flow names:
 
 ---
 
+## Scheduled Triggers
+
+You can schedule one-time tick executions at specific future times by including `scheduled_triggers` in your response. Use this for time-sensitive events where you need to react at a specific moment.
+
+### When to Schedule Triggers
+- **Earnings calls**: Schedule tick for 15 min after earnings release time
+- **Fed announcements**: FOMC meeting conclusions (usually 2:00 PM ET)
+- **Economic data releases**: CPI, jobs reports, GDP (usually 8:30 AM ET)
+- **Options expiration**: Monthly opex, weekly expiry times
+- **Crypto events**: Token unlocks, protocol upgrades, halvings
+
+### Format
+```json
+"scheduled_triggers": [
+  {"time": "2026-01-03T14:00:00-05:00", "reason": "NVDA earnings call ends"}
+]
+```
+
+### Guidelines
+- Time must be ISO-8601 with timezone (e.g., `-05:00` for ET)
+- Schedule 5-15 minutes after the event to allow news to propagate
+- Don't over-schedule - only for genuinely important events
+- Triggers execute outside the normal cron schedule
+
+---
+
 ## Evolution Log
 Document what's working and what's not. Adapt the strategy based on results.
 

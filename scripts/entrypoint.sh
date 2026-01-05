@@ -75,5 +75,8 @@ echo "  TZ: ${TZ}"
 echo "  Paper Trading: ${ALPACA_PAPER_TRADE:-True}"
 echo "  Running tick.py as: botuser (non-root for Claude Code permissions)"
 
+# Start AT daemon for scheduled triggers (allows bot to schedule one-time ticks)
+atd
+
 # Start cron in foreground
 exec cron -f

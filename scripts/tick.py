@@ -329,9 +329,16 @@ After completing your analysis and any trades, respond with a JSON block in this
   "market_open": true,
   "notes": "brief summary of this tick",
   "plan_updated": false,
-  "strategy_updated": false
+  "strategy_updated": false,
+  "scheduled_triggers": [
+    {{"time": "2026-01-03T14:00:00-05:00", "reason": "NVDA earnings call ends"}}
+  ]
 }}
 ```
+
+**SCHEDULED TRIGGERS:** You can schedule one-time future ticks by including `scheduled_triggers` in your response.
+Use this for time-sensitive events: earnings calls, Fed announcements, economic data releases, options expiration, crypto events.
+The "time" must be an ISO-8601 datetime with timezone (e.g., "2026-01-03T14:00:00-05:00").
 """
     return prompt
 
@@ -366,7 +373,7 @@ def send_slack_alert(error: str, tick_time: str, last_action: Optional[dict] = N
         print(f"[ERROR] Failed to send Slack alert: {e}", file=sys.stderr)
 
 
-def send_slack_summary(tick_time: str, result: dict, analysis_only: bool = False):
+def send_slack_summary(tick_time: str, result: dict, analysis_only: bool = False, triggered: bool = False):
     """Send tick summary to Slack webhook."""
     if not SLACK_WEBHOOK_URL:
         return
@@ -416,7 +423,7 @@ def send_slack_summary(tick_time: str, result: dict, analysis_only: bool = False
 
     # Market status
     market_status = ":chart_with_upwards_trend: Market Open" if result.get("market_open") else ":moon: Market Closed"
-    mode = " (Analysis Only)" if analysis_only else ""
+    mode = " (Triggered)" if triggered else (" (Analysis Only)" if analysis_only else "")
 
     # Build payload
     payload = {
@@ -491,6 +498,46 @@ def log_action(tick_time: str, result: dict):
     }
     with open(ACTIONS_LOG, "a") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def schedule_trigger(trigger_time: str, reason: str) -> bool:
+    """Schedule a one-time tick using AT daemon.
+
+    Args:
+        trigger_time: ISO datetime string (e.g., "2026-01-03T14:00:00-05:00")
+        reason: Reason for the trigger (for logging)
+
+    Returns:
+        True if scheduled successfully, False otherwise
+    """
+    try:
+        # Parse the ISO time
+        dt = datetime.fromisoformat(trigger_time)
+
+        # Convert to AT format: HH:MM YYYY-MM-DD
+        at_time = dt.strftime("%H:%M %Y-%m-%d")
+
+        # Build the AT command
+        tick_cmd = "gosu botuser /usr/local/bin/tick.py --triggered"
+
+        # Schedule using AT daemon
+        proc = subprocess.run(
+            ["at", at_time],
+            input=tick_cmd,
+            text=True,
+            capture_output=True
+        )
+
+        if proc.returncode == 0:
+            print(f"[INFO] Scheduled trigger at {at_time}: {reason}")
+            return True
+        else:
+            print(f"[WARN] Failed to schedule trigger: {proc.stderr}", file=sys.stderr)
+            return False
+
+    except Exception as e:
+        print(f"[ERROR] schedule_trigger failed: {e}", file=sys.stderr)
+        return False
 
 
 def parse_claude_response(output: str) -> dict:
@@ -609,10 +656,13 @@ def main():
     parser = argparse.ArgumentParser(description="Alpaca Trading Bot Tick")
     parser.add_argument("--analysis-only", action="store_true",
                         help="Run in analysis-only mode (no trades)")
+    parser.add_argument("--triggered", action="store_true",
+                        help="Indicates this tick was from a scheduled trigger")
     args = parser.parse_args()
 
     tick_time = datetime.now().isoformat()
-    print(f"[{tick_time}] Starting tick...")
+    mode_str = " (triggered)" if args.triggered else (" (analysis-only)" if args.analysis_only else "")
+    print(f"[{tick_time}] Starting tick{mode_str}...")
 
     # Load asset type configuration
     asset_config = AssetTypeConfig.from_env()
@@ -624,6 +674,18 @@ def main():
         state = init_state_json()
         plan = init_plan_md()
         strategy = init_strategy_md()
+
+        # Clean up expired triggers from state
+        now = datetime.now()
+        pending = state.get("pending_triggers", [])
+        if pending:
+            state["pending_triggers"] = [
+                t for t in pending
+                if datetime.fromisoformat(t["time"]).replace(tzinfo=None) > now
+            ]
+            cleaned = len(pending) - len(state.get("pending_triggers", []))
+            if cleaned > 0:
+                print(f"  Cleaned up {cleaned} expired trigger(s)")
 
         # Build prompt
         prompt = build_prompt(state, plan, strategy, analysis_only=args.analysis_only, asset_config=asset_config)
@@ -639,6 +701,33 @@ def main():
 
         # Update state
         state = update_state(state, result, tick_time)
+
+        # Process scheduled triggers from response
+        scheduled = result.get("scheduled_triggers", [])
+        for trigger in scheduled:
+            trigger_time = trigger.get("time")
+            reason = trigger.get("reason", "Bot scheduled trigger")
+
+            if trigger_time:
+                # Validate time is in the future
+                try:
+                    dt = datetime.fromisoformat(trigger_time)
+                    # Handle timezone-aware comparison
+                    now_for_compare = datetime.now(dt.tzinfo) if dt.tzinfo else datetime.now()
+                    if dt > now_for_compare:
+                        if schedule_trigger(trigger_time, reason):
+                            # Add to pending_triggers in state
+                            pending = state.setdefault("pending_triggers", [])
+                            pending.append({
+                                "time": trigger_time,
+                                "reason": reason,
+                                "scheduled_at": tick_time
+                            })
+                    else:
+                        print(f"[WARN] Trigger time {trigger_time} is in the past, skipping")
+                except ValueError as e:
+                    print(f"[WARN] Invalid trigger time '{trigger_time}': {e}")
+
         STATE_JSON.write_text(json.dumps(state, indent=2))
 
         # Check for parse errors
@@ -655,7 +744,7 @@ def main():
             print(f"  Notes: {result['notes'][:100]}")
 
         # Send Slack summary notification
-        send_slack_summary(tick_time, result, analysis_only=args.analysis_only)
+        send_slack_summary(tick_time, result, analysis_only=args.analysis_only, triggered=args.triggered)
 
     except Exception as e:
         error_msg = str(e)

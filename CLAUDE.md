@@ -63,6 +63,9 @@ docker compose run --rm trading-bot gosu botuser /usr/local/bin/tick.py
 # Run analysis-only tick (no trades)
 docker compose run --rm trading-bot gosu botuser /usr/local/bin/tick.py --analysis-only
 
+# Run a triggered tick (simulates scheduled trigger execution)
+docker compose run --rm trading-bot gosu botuser /usr/local/bin/tick.py --triggered
+
 # View logs
 docker compose exec trading-bot tail -f /data/alpaca-bot/logs/cron.log
 
@@ -130,12 +133,23 @@ Autonomous trading bot executed by cron every 15 minutes during market hours.
 **State Files** (in `/data/alpaca-bot/` - Docker volume):
 | File | Purpose | Mutability |
 |------|---------|------------|
-| `state.json` | Current positions, buying power, action history (last 50) | Bot writes each tick |
+| `state.json` | Current positions, buying power, action history (last 50), pending triggers | Bot writes each tick |
 | `plan.md` | Short-term trading plan | Bot can modify |
 | `strategy.md` | Trading approach and rules | Bot can modify |
 | `logs/actions.ndjson` | Append-only decision log | Bot appends |
 | `logs/errors.ndjson` | Error log | Bot appends |
 | `logs/cron.log` | Cron execution output | System appends |
+
+**state.json Schema**:
+```json
+{
+  "last_tick_iso": "2026-01-03T10:30:00.123456",
+  "positions_snapshot": [{"symbol": "AAPL", "qty": 10, "market_value": 1000.00, "unrealized_pl": 50.00}],
+  "buying_power": 10000.00,
+  "actions_history": [{"ts": "...", "decisions": [...], "market_open": true, "notes": "..."}],
+  "pending_triggers": [{"time": "2026-01-03T14:00:00-05:00", "reason": "NVDA earnings", "scheduled_at": "..."}]
+}
+```
 
 **Cron Schedule** (America/New_York timezone):
 - Market hours: Every 15 min, 9:30 AM - 4:00 PM ET, Mon-Fri
@@ -143,12 +157,13 @@ Autonomous trading bot executed by cron every 15 minutes during market hours.
 - Weekends: Twice daily (10 AM, 6 PM) analysis
 
 ### Docker Configuration
-- `Dockerfile` - Installs Claude Code CLI via npm, cron, Python deps, sets up entrypoint
+- `Dockerfile` - Installs Claude Code CLI via npm, cron, AT daemon, Python deps, sets up entrypoint
 - `docker-compose.yml` - Two services:
   - `trading-bot` - Cron-based autonomous trading (default)
   - `mcp-server` - HTTP MCP server (optional, use `--profile mcp`)
 - `mcp-config.json` - MCP server configuration for Claude Code (uses env var substitution)
 - `crontab` - Cron schedule for tick execution
+- AT daemon (`atd`) - For bot-scheduled one-time ticks (started by entrypoint)
 
 ### Helper Functions
 Located in `alpaca_mcp_server.py`:
@@ -178,6 +193,7 @@ These decisions were made during the interview process and should be understood 
 - **Python for Tick Script**: Better error handling and JSON parsing than bash
 - **Model Selection**: Uses Opus by default, falls back to Sonnet when quota exhausted
 - **No Fixed Position Limits**: Bot manages its own risk with available capital
+- **Scheduled Triggers**: Bot can schedule one-time future ticks via AT daemon for time-sensitive events (earnings, Fed announcements, etc.)
 
 ### Error Handling
 - Errors logged to `errors.ndjson`
@@ -266,6 +282,13 @@ alpaca-mcp-server/
 - [x] Prompt-level enforcement (tools available, Claude instructed on permitted types)
 - [x] Add crypto/options placeholder sections to `templates/strategy.md`
 - [x] Add position tables for all asset types in `templates/plan.md`
+
+### Phase 3.5: Scheduled Triggers - ✅ COMPLETE
+- [x] Bot can schedule one-time ticks at specific times using `scheduled_triggers` in response
+- [x] Uses Linux AT daemon for job scheduling
+- [x] Pending triggers tracked in `state.json`
+- [x] `--triggered` flag for ticks from scheduled triggers
+- [x] Slack shows "(Triggered)" mode for scheduled tick notifications
 
 ### Phase 4: Long-term Memory (Future)
 - [ ] Evaluate mem0 or SQLite-based memory MCP
