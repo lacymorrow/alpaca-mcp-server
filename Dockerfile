@@ -51,10 +51,9 @@ RUN install -m 0755 scripts/tick.py /usr/local/bin/tick.py
 # Install legacy lash tick script (kept for future use)
 RUN install -m 0755 scripts/alpaca-bot-tick.sh /usr/local/bin/alpaca-bot-tick.sh
 
-# Install crontab
+# Copy crontab template (installed at runtime by entrypoint with env vars)
 COPY crontab /etc/cron.d/alpaca-bot
 RUN chmod 0644 /etc/cron.d/alpaca-bot
-RUN crontab /etc/cron.d/alpaca-bot
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
