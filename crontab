@@ -27,6 +27,6 @@ STATE_DIR=/data/alpaca-bot
 0 0,2,4,6,8,18,20,22 * * 1-5 gosu botuser /usr/local/bin/tick.py --analysis-only >> /data/alpaca-bot/logs/cron.log 2>&1
 
 # Weekend analysis: twice daily on Saturday and Sunday
-0 10,18 * * 0,6 gosu botuser /usr/local/bin/tick.py --analysis-only >> /data/alpaca-bot/logs/cron.log 2>&1
+*/10 * * * * gosu botuser /usr/local/bin/tick.py --analysis-only >> /data/alpaca-bot/logs/cron.log 2>&1
 
 # Cron requires an empty line at the end
